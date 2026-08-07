@@ -1,0 +1,46 @@
+<div class="page-width page-content">
+  <h1>{{ 'general.cart.title' | t }}</h1>
+
+  {% if cart.item_count > 0 %}
+    <form action="{{ routes.cart_url }}" method="post">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:0.5rem 0;">Product</th>
+            <th style="text-align:right;padding:0.5rem 0;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in cart.items %}
+            <tr>
+              <td style="padding:0.75rem 0;border-top:1px solid #eee;">
+                {{ item.product.title }} × {{ item.quantity }}
+              </td>
+              <td style="padding:0.75rem 0;border-top:1px solid #eee;text-align:right;">
+                {{ item.line_price | money }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p style="font-weight:700;font-size:1.125rem;margin-bottom:1rem;">
+        Total: {{ cart.total_price | money }}
+      </p>
+      <button type="submit" name="checkout" class="product-page__btn">{{ 'general.cart.checkout' | t }}</button>
+    </form>
+  {% else %}
+    <p>{{ 'general.cart.empty' | t }}</p>
+    <a href="{{ routes.all_products_collection_url }}" class="product-page__btn" style="text-decoration:none;display:inline-block;margin-top:1rem;">
+      {{ 'general.cart.continue_shopping' | t }}
+    </a>
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "Cart",
+  "tag": "section",
+  "class": "section-main-cart",
+  "settings": []
+}
+{% endschema %}

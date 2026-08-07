@@ -1,0 +1,30 @@
+<div class="page-width page-content">
+  <h1>Collections</h1>
+  <div class="product-grid">
+    {% for collection in collections %}
+      {% unless collection.handle == 'frontpage' %}
+        <article class="product-card">
+          <a href="{{ collection.url }}">
+            {% if collection.featured_image %}
+              {{ collection.featured_image | image_url: width: 600 | image_tag: class: 'product-card__image', loading: 'lazy', alt: collection.title }}
+            {% else %}
+              <div class="product-card__image"></div>
+            {% endif %}
+          </a>
+          <div class="product-card__info">
+            <h3 class="product-card__title"><a href="{{ collection.url }}">{{ collection.title }}</a></h3>
+          </div>
+        </article>
+      {% endunless %}
+    {% endfor %}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Collections list",
+  "tag": "section",
+  "class": "section-main-list-collections",
+  "settings": []
+}
+{% endschema %}

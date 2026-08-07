@@ -1,0 +1,161 @@
+{% comment %}
+  Homepage banner — links to your Live Scores page
+{% endcomment %}
+
+{%- assign scores_page = section.settings.scores_page -%}
+{%- if section.settings.hub_url != blank -%}
+  {%- assign hub_url = section.settings.hub_url -%}
+{%- else -%}
+  {%- assign hub_url = 'https://soccer.co.ke' -%}
+{%- endif -%}
+{%- if scores_page != blank -%}
+  {%- assign link = scores_page.url -%}
+{%- else -%}
+  {%- assign link = hub_url -%}
+{%- endif -%}
+
+<div class="soccer-banner" id="soccer-banner-{{ section.id }}">
+  <div class="soccer-banner__inner page-width">
+    <div class="soccer-banner__content">
+      <span class="soccer-banner__live">
+        <span class="soccer-banner__dot"></span>
+        World Cup 2026 Live
+      </span>
+      <h2 class="soccer-banner__title">{{ section.settings.title }}</h2>
+      <p class="soccer-banner__text">{{ section.settings.text }}</p>
+      <a href="{{ link }}" class="soccer-banner__btn">
+        {{ section.settings.button_label }}
+        <span aria-hidden="true">→</span>
+      </a>
+    </div>
+    <div class="soccer-banner__emoji" aria-hidden="true">⚽</div>
+  </div>
+</div>
+
+<style>
+  #soccer-banner-{{ section.id }} {
+    background: linear-gradient(135deg, #0a1628, #37003c 50%, #120228);
+    padding: 2.5rem 0;
+    margin-bottom: 2rem;
+    overflow: hidden;
+    position: relative;
+  }
+  #soccer-banner-{{ section.id }}::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 80% 50%, rgba(0, 255, 135, 0.12), transparent 55%);
+    pointer-events: none;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    position: relative;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #ff6b6b;
+    margin-bottom: 0.75rem;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__dot {
+    width: 8px;
+    height: 8px;
+    background: #ff6b6b;
+    border-radius: 50%;
+    animation: soccer-pulse 1.5s ease infinite;
+  }
+  @keyframes soccer-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__title {
+    color: #fff;
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    line-height: 1.15;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__text {
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0 0 1.25rem;
+    max-width: 32rem;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #00ff87;
+    color: #37003c;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__btn:hover {
+    background: #00e078;
+    transform: translateY(-1px);
+  }
+  #soccer-banner-{{ section.id }} .soccer-banner__emoji {
+    font-size: 5rem;
+    opacity: 0.25;
+    line-height: 1;
+  }
+  @media (max-width: 749px) {
+    #soccer-banner-{{ section.id }} .soccer-banner__emoji { display: none; }
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Soccer Hub Banner",
+  "tag": "section",
+  "class": "section-soccer-banner",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Live Scores & World Cup Tables"
+    },
+    {
+      "type": "textarea",
+      "id": "text",
+      "label": "Description",
+      "default": "Follow FIFA World Cup 2026 and Premier League — free live scores, group tables and news."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "View Live Scores"
+    },
+    {
+      "type": "page",
+      "id": "scores_page",
+      "label": "Live scores page",
+      "info": "Create a page using the 'soccer-hub' template and select it here"
+    },
+    {
+      "type": "url",
+      "id": "hub_url",
+      "label": "Fallback URL",
+      "info": "Used if no page selected. Default: https://soccer.co.ke"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Soccer Hub Banner"
+    }
+  ]
+}
+{% endschema %}

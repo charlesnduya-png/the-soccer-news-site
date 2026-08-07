@@ -1,0 +1,36 @@
+[
+  {
+    "name": "theme_info",
+    "theme_name": "Soccer.co.ke",
+    "theme_version": "3.2.0",
+    "theme_author": "soccer.co.ke",
+    "theme_documentation_url": "https://soccercoke-alpha.vercel.app",
+    "theme_support_url": "https://soccercoke-alpha.vercel.app"
+  },
+  {
+    "name": "Football Hub",
+    "settings": [
+      {
+        "type": "paragraph",
+        "content": "Upload and publish — homepage embeds your live football hub (transfers, news, World Cup, PL table)."
+      },
+      {
+        "type": "text",
+        "id": "hub_base_url",
+        "label": "Football hub URL",
+        "default": "https://soccercoke-alpha.vercel.app",
+        "info": "Use https://soccercoke-alpha.vercel.app — not soccer.co.ke"
+      }
+    ]
+  },
+  {
+    "name": "Branding",
+    "settings": [
+      {
+        "type": "image_picker",
+        "id": "favicon",
+        "label": "Favicon"
+      }
+    ]
+  }
+]

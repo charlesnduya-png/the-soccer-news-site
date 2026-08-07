@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="{{ request.locale.iso_code }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#37003c">
+    <link rel="canonical" href="{{ canonical_url }}">
+
+    {%- if settings.favicon != blank -%}
+      <link rel="icon" type="image/png" href="{{ settings.favicon | image_url: width: 32, height: 32 }}">
+    {%- endif -%}
+
+    <title>
+      {{ page_title }}
+      {%- unless page_title contains shop.name %} &ndash; {{ shop.name }}{% endunless -%}
+    </title>
+
+    {% if page_description %}
+      <meta name="description" content="{{ page_description | escape }}">
+    {% endif %}
+
+    {{ content_for_header }}
+
+    {%- liquid
+      assign hub_mode = false
+      if template.name == 'index'
+        assign hub_mode = true
+      endif
+      if template.suffix == 'soccer-hub' or template.suffix == 'soccer-news' or template.suffix == 'soccer-worldcup'
+        assign hub_mode = true
+      endif
+    -%}
+
+    {%- unless hub_mode -%}
+      {{ 'base.css' | asset_url | stylesheet_tag }}
+    {%- endunless -%}
+
+    {%- if hub_mode -%}
+      <style>
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #120228; }
+      </style>
+    {%- endif -%}
+  </head>
+
+  <body class="template-{{ template.name }}{% if template.suffix %} template-{{ template.name }}-{{ template.suffix }}{% endif %}">
+    {%- if hub_mode -%}
+      {{ content_for_layout }}
+    {%- else -%}
+      <a class="skip-link" href="#MainContent">Skip to content</a>
+      {% sections 'header-group' %}
+      <main id="MainContent" class="main-content" role="main">
+        {{ content_for_layout }}
+      </main>
+      {% sections 'footer-group' %}
+    {%- endif -%}
+  </body>
+</html>

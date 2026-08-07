@@ -1,0 +1,12 @@
+{
+  "sections": {
+    "main": {
+      "type": "soccer-full-site",
+      "settings": {
+        "hub_base_url": "https://soccercoke-alpha.vercel.app",
+        "hub_path": "/news"
+      }
+    }
+  },
+  "order": ["main"]
+}

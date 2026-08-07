@@ -1,0 +1,19 @@
+{
+  "sections": {
+    "soccer-full-site": {
+      "name": "Full Football Hub (Exact Site)"
+    },
+    "soccer-news": {
+      "name": "Soccer News (Live API)"
+    },
+    "soccer-worldcup": {
+      "name": "World Cup Live Scores"
+    },
+    "soccer-hub-banner": {
+      "name": "Soccer Hub Banner"
+    },
+    "featured-collection": {
+      "name": "Featured collection"
+    }
+  }
+}

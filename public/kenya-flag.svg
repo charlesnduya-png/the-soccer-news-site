@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-labelledby="title">
+  <title id="title">Flag of Kenya</title>
+  <path fill="#000" d="M0 0h900v180H0z"/>
+  <path fill="#fff" d="M0 180h900v30H0z"/>
+  <path fill="#b00" d="M0 210h900v180H0z"/>
+  <path fill="#fff" d="M0 390h900v30H0z"/>
+  <path fill="#060" d="M0 420h900v180H0z"/>
+  <g transform="translate(450 300)">
+    <path fill="none" stroke="#fff" stroke-width="18" d="M-115-155 115 155M115-155-115 155"/>
+    <path fill="none" stroke="#000" stroke-width="10" d="M-115-155 115 155M115-155-115 155"/>
+    <path fill="#b00" stroke="#000" stroke-width="12" d="M0-185c78 70 78 300 0 370-78-70-78-300 0-370z"/>
+    <path fill="#000" d="M0-170c-25 48-31 101-30 170H0zm0 340c25-48 31-101 30-170H0z"/>
+    <ellipse cx="0" cy="-67" rx="15" ry="34" fill="#fff"/>
+    <ellipse cx="0" cy="67" rx="15" ry="34" fill="#fff"/>
+    <circle r="13" fill="#fff"/>
+  </g>
+</svg>

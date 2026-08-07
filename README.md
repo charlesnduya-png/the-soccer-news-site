@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Premier League Hub — soccer.co.ke
 
-## Getting Started
+A modern Premier League website — **100% free forever**, no credit card, no payment ever.
 
-First, run the development server:
+## Features
+
+- **League Table** — Full standings with form, goal difference, and European/relegation zones
+- **Fixtures & Results** — Upcoming matches and full-time scores
+- **Top Scorers** — Golden boot race with goals, assists, and penalties
+- **Teams** — All 20 clubs with crests and venues
+- **News** — Auto-fetched from **free RSS feeds** (BBC, Sky Sports, Guardian, Goal.com)
+- **Optional GNews.io** — Extra headlines on the free tier (100 req/day)
+- **JSON API** — `/api/news` endpoint for programmatic access
+
+## 100% Free Data Sources
+
+| What | Source | Cost | API key? |
+|------|--------|------|----------|
+| **News** | RSS feeds (BBC, Sky, Guardian, Goal) | Free forever | No |
+| **Extra news** | [GNews.io](https://gnews.io) | Free 100 req/day | Optional |
+| **Tables & scores** | [football-data.org](https://www.football-data.org) | Free forever | Optional |
+
+News works **immediately with zero setup** via RSS. No signup required.
+
+## Quick Start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Optional free API keys
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Only add these if you want live table data or extra news from GNews.io:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Sign up (free, no card) |
+|----------|-------------------------|
+| `FOOTBALL_DATA_API_KEY` | [football-data.org/client/register](https://www.football-data.org/client/register) |
+| `GNEWS_API_KEY` | [gnews.io/register](https://gnews.io/register) |
+| `CRON_SECRET` | Any long random string — protects the autopilot refresh endpoint |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Autopilot (self-updating)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The site keeps itself fresh without manual deploys:
 
-## Deploy on Vercel
+| Piece | What it does |
+|-------|----------------|
+| **Site Autopilot** | Refreshes server-rendered pages when their data is stale |
+| **Live feeds** | News, transfers and Kenya feeds refresh every 2 minutes with last-known-good recovery |
+| **Cron** | Authenticated `/api/cron/refresh` runs twice daily on Vercel Hobby |
+| **Pulse** | `/api/pulse` shows last update status |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+On Vercel: set `CRON_SECRET` and redeploy — Vercel Cron calls the refresh route automatically.
+On a VPS, schedule an authenticated refresh:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://your-domain.com/api/cron/refresh
+```
+
+## Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Dashboard with table preview, fixtures, results, news |
+| `/standings` | Full league table |
+| `/fixtures` | Upcoming matches |
+| `/results` | Match results |
+| `/scorers` | Top goal scorers |
+| `/teams` | All clubs |
+| `/news` | Latest headlines |
+| `/api/news` | JSON news feed |
+
+## Deploy
+
+```bash
+npm run build
+npm start
+```
+
+Live site: [soccercoke.vercel.app](https://soccercoke-alpha.vercel.app)

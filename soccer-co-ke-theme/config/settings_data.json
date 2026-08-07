@@ -1,0 +1,10 @@
+{
+  "current": {
+    "hub_base_url": "https://soccercoke-alpha.vercel.app",
+    "sections": {
+      "header": { "type": "header", "settings": {} },
+      "footer": { "type": "footer", "settings": {} }
+    },
+    "content_for_index": []
+  }
+}

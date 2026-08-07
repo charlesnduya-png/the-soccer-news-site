@@ -1,0 +1,37 @@
+{
+  "general": {
+    "password_page": {
+      "opening_soon": "Opening soon",
+      "login_form_password": "Password",
+      "login_form_submit": "Enter"
+    },
+    "404": {
+      "title": "Page not found",
+      "subtext": "The page you requested does not exist."
+    },
+    "search": {
+      "title": "Search",
+      "placeholder": "Search products…",
+      "submit": "Search",
+      "no_results": "No results found."
+    },
+    "cart": {
+      "title": "Your cart",
+      "empty": "Your cart is empty.",
+      "checkout": "Checkout",
+      "continue_shopping": "Continue shopping"
+    }
+  },
+  "products": {
+    "product": {
+      "add_to_cart": "Add to cart",
+      "sold_out": "Sold out",
+      "quantity": "Quantity"
+    }
+  },
+  "collections": {
+    "general": {
+      "no_matches": "No products found."
+    }
+  }
+}

@@ -1,0 +1,54 @@
+soccer.co.ke — Deploy on any Node.js host
+==========================================
+
+This zip is the full Next.js football hub:
+- Premier League news, tables, fixtures & results
+- Kenyan football news (Harambee Stars, KPL, FKF)
+- Transfers feed
+- janta.ke partner advert
+- Silent autopilot (auto-updating news & pages)
+
+REQUIREMENTS
+- Node.js 20+ (24 recommended)
+- npm
+
+QUICK START
+1. Unzip this folder
+2. npm install
+3. Copy .env.example to .env.local and fill in your keys
+4. npm run build
+5. npm start
+
+ENVIRONMENT VARIABLES (.env.local)
+- NEXT_PUBLIC_SITE_URL=https://your-domain.com
+- NEXT_PUBLIC_GA_ID=G-CLP63EV54W
+- GNEWS_API_KEY=your-gnews-key (optional — RSS still works)
+- FOOTBALL_DATA_API_KEY=your-key (optional — fallback data used if missing)
+- CRON_SECRET=long-random-string (protects /api/cron/refresh)
+
+AUTOPILOT (keeps the site self-updating)
+- Browser: silent autopilot refreshes stale server-rendered pages
+- News/transfers/Kenya APIs auto-refresh every 2 min and retain last-known-good stories
+- Cron: GET /api/cron/refresh twice daily (6 AM & 6 PM on Vercel Hobby)
+- VPS cron (recommended every 30 min): */30 * * * * curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/cron/refresh
+- Status: GET /api/pulse
+- External cron (VPS): curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/cron/refresh
+
+VERCEL
+- npx vercel --prod
+
+OTHER HOSTS (Railway, Render, cPanel Node, VPS)
+- Build command: npm run build
+- Start command: npm start
+- Port: 3000 (or set PORT env)
+
+SHOPIFY THEME (optional, not in this zip)
+- Use soccer-co-ke-theme.zip separately
+- Upload in Shopify → Themes → Upload zip
+
+NOT INCLUDED (create after unzip)
+- node_modules  → run npm install
+- .env.local    → copy from .env.example
+- .next         → created by npm run build
+
+Live reference: https://soccercoke-alpha.vercel.app

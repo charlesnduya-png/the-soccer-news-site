@@ -1,0 +1,40 @@
+{%- assign news_handle = settings.news_page_handle | default: 'news' -%}
+{%- assign wc_handle = settings.worldcup_page_handle | default: 'world-cup' -%}
+{%- assign scores_handle = settings.live_scores_page_handle | default: 'live-scores' -%}
+
+<header class="site-header">
+  <div class="page-width site-header__inner">
+    <a href="{{ routes.root_url }}" class="site-header__logo">
+      ⚽ {{ shop.name }}
+    </a>
+
+    <nav class="site-header__nav" aria-label="Main">
+      <a href="{{ routes.root_url }}" class="site-header__link{% if request.page_type == 'index' %} site-header__link--active{% endif %}">
+        Home
+      </a>
+      <a href="/pages/{{ wc_handle }}" class="site-header__link site-header__link--scores{% if page.handle == wc_handle %} site-header__link--active{% endif %}">
+        World Cup
+      </a>
+      <a href="/pages/{{ news_handle }}" class="site-header__link{% if page.handle == news_handle %} site-header__link--active{% endif %}">
+        News
+      </a>
+      <a href="{{ routes.all_products_collection_url }}" class="site-header__link{% if request.page_type == 'collection' %} site-header__link--active{% endif %}">
+        Shop
+      </a>
+      <a href="{{ routes.cart_url }}" class="site-header__cart">
+        Cart
+        {%- if cart.item_count > 0 -%}
+          <span class="site-header__cart-count">{{ cart.item_count }}</span>
+        {%- endif -%}
+      </a>
+    </nav>
+  </div>
+</header>
+
+{% schema %}
+{
+  "name": "Header",
+  "class": "section-header",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,64 @@
+========================================
+  OPEN THIS SITE ON ANOTHER HOSTING
+========================================
+
+This is the full soccer.co.ke football website.
+After upload, follow the steps for your host type.
+
+------------------------------------------------
+OPTION A — Your own computer / Windows VPS
+------------------------------------------------
+1. Unzip soccer-co-ke-open-site.zip
+2. Double-click: START.bat
+3. Wait until it says "Ready"
+4. Open browser: http://localhost:3000
+
+------------------------------------------------
+OPTION B — Linux VPS (Ubuntu/Debian)
+------------------------------------------------
+1. Upload + unzip the zip
+2. Run:
+     chmod +x START.sh
+     ./START.sh
+3. Open: http://YOUR-SERVER-IP:3000
+
+------------------------------------------------
+OPTION C — Railway / Render / cPanel Node
+------------------------------------------------
+Build command:  npm run build
+Start command:  npm start
+Node version:   20 or 24
+
+Environment variables (set in host panel):
+  NEXT_PUBLIC_SITE_URL=https://your-domain.com
+  NEXT_PUBLIC_GA_ID=G-CLP63EV54W
+  GNEWS_API_KEY=your-key-here
+
+------------------------------------------------
+OPTION D — Vercel
+------------------------------------------------
+  npx vercel --prod
+
+------------------------------------------------
+FIRST TIME SETUP (all hosts)
+------------------------------------------------
+1. Copy file:  .env.example  →  .env.local
+2. Edit .env.local:
+   - NEXT_PUBLIC_SITE_URL = your domain (example https://soccer.co.ke)
+   - GNEWS_API_KEY = your GNews key (optional — news still works from RSS)
+3. Then run START.bat / START.sh or npm run build && npm start
+
+------------------------------------------------
+WHAT THIS SITE INCLUDES
+------------------------------------------------
+- Premier League transfers (auto-updating)
+- Premier League news
+- World Cup live scores
+- PL table & fixtures
+- janta.ke partner banner
+- Google Analytics G-CLP63EV54W
+
+Live demo: https://soccercoke-alpha.vercel.app
+
+Need help: read HOSTING.txt
+========================================

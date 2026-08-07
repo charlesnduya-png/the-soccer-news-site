@@ -1,0 +1,226 @@
+{% comment %}
+  soccer.co.ke — Live Football Hub (iframe)
+  Embeds the full World Cup & Premier League site inside your Shopify store.
+{% endcomment %}
+
+{%- liquid
+  if section.settings.hub_url != blank
+    assign hub_url = section.settings.hub_url
+  else
+    assign hub_url = 'https://soccer.co.ke'
+  endif
+  assign hub_path = section.settings.hub_path | default: '/'
+  assign full_url = hub_url | append: hub_path
+  assign iframe_height = section.settings.iframe_height | default: 2400
+-%}
+
+<div class="soccer-hub-wrap" id="soccer-hub-{{ section.id }}">
+  {% if section.settings.show_header %}
+    <div class="soccer-hub-header">
+      <div class="soccer-hub-header__inner page-width">
+        <span class="soccer-hub-badge">⚽ Live</span>
+        <h1 class="soccer-hub-title">{{ section.settings.heading }}</h1>
+        {% if section.settings.subheading != blank %}
+          <p class="soccer-hub-subtitle">{{ section.settings.subheading }}</p>
+        {% endif %}
+        <div class="soccer-hub-tabs">
+          <a href="{{ hub_url }}/world-cup" class="soccer-hub-tab" target="_blank" rel="noopener">World Cup</a>
+          <a href="{{ hub_url }}/world-cup/groups" class="soccer-hub-tab" target="_blank" rel="noopener">Groups</a>
+          <a href="{{ hub_url }}/standings" class="soccer-hub-tab" target="_blank" rel="noopener">PL Table</a>
+          <a href="{{ hub_url }}/news" class="soccer-hub-tab" target="_blank" rel="noopener">News</a>
+          <a href="{{ routes.root_url }}" class="soccer-hub-tab soccer-hub-tab--shop">🛒 Shop</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="soccer-hub-frame-wrap page-width">
+    <iframe
+      src="{{ full_url }}"
+      title="soccer.co.ke — Live Football Scores"
+      class="soccer-hub-iframe"
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+      allow="fullscreen"
+      style="height: {{ iframe_height }}px;"
+    ></iframe>
+    <noscript>
+      <p class="soccer-hub-fallback">
+        <a href="{{ full_url }}" target="_blank" rel="noopener">Open live football scores →</a>
+      </p>
+    </noscript>
+  </div>
+
+  {% if section.settings.show_footer_note %}
+    <p class="soccer-hub-note page-width">
+      Powered by <a href="{{ full_url }}" target="_blank" rel="noopener">soccer.co.ke</a>
+      · Scores update automatically
+    </p>
+  {% endif %}
+</div>
+
+<style>
+  #soccer-hub-{{ section.id }} {
+    --soccer-green: #00ff87;
+    --soccer-purple: #37003c;
+    --soccer-dark: #120228;
+    margin: 0 0 2rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-header {
+    background: linear-gradient(135deg, #0a1628 0%, var(--soccer-purple) 50%, var(--soccer-dark) 100%);
+    padding: 2rem 0 1.5rem;
+    margin-bottom: 1rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-header__inner {
+    text-align: center;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-badge {
+    display: inline-block;
+    background: rgba(0, 255, 135, 0.15);
+    color: var(--soccer-green);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 0.75rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-title {
+    color: #fff;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    line-height: 1.1;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-subtitle {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 1rem;
+    margin: 0 0 1.25rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-tab {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-tab:hover {
+    border-color: var(--soccer-green);
+    color: var(--soccer-green);
+    background: rgba(0, 255, 135, 0.08);
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-tab--shop {
+    background: var(--soccer-green);
+    color: var(--soccer-purple);
+    border-color: var(--soccer-green);
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-tab--shop:hover {
+    background: #00e078;
+    color: var(--soccer-purple);
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-frame-wrap {
+    padding: 0 1rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-iframe {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    background: var(--soccer-dark);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    display: block;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-fallback,
+  #soccer-hub-{{ section.id }} .soccer-hub-note {
+    text-align: center;
+    font-size: 0.875rem;
+    color: rgba(0, 0, 0, 0.55);
+    margin-top: 1rem;
+  }
+  #soccer-hub-{{ section.id }} .soccer-hub-note a {
+    color: var(--soccer-purple);
+    font-weight: 600;
+  }
+  @media (max-width: 749px) {
+    #soccer-hub-{{ section.id }} .soccer-hub-iframe {
+      border-radius: 8px;
+      min-height: 1800px;
+    }
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Soccer Hub (Live Scores)",
+  "tag": "section",
+  "class": "section-soccer-hub",
+  "settings": [
+    {
+      "type": "header",
+      "content": "soccer.co.ke — Football Hub"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Live Football Scores"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "World Cup 2026 · Premier League · News"
+    },
+    {
+      "type": "url",
+      "id": "hub_url",
+      "label": "Hub base URL",
+      "info": "Default: https://soccer.co.ke"
+    },
+    {
+      "type": "text",
+      "id": "hub_path",
+      "label": "Page path",
+      "default": "/",
+      "info": "e.g. /world-cup or /news"
+    },
+    {
+      "type": "range",
+      "id": "iframe_height",
+      "min": 1200,
+      "max": 4000,
+      "step": 100,
+      "unit": "px",
+      "label": "Iframe height",
+      "default": 2400
+    },
+    {
+      "type": "checkbox",
+      "id": "show_header",
+      "label": "Show header bar",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_footer_note",
+      "label": "Show powered-by note",
+      "default": true
+    }
+  ],
+  "presets": [
+    {
+      "name": "Soccer Hub (Live Scores)"
+    }
+  ]
+}
+{% endschema %}

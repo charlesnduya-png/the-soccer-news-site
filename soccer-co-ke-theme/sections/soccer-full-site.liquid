@@ -1,0 +1,57 @@
+{% comment %}
+  Full-screen football hub — embeds live site from Vercel.
+{% endcomment %}
+
+{%- if section.settings.hub_base_url != blank -%}
+  {%- assign hub_base = section.settings.hub_base_url | strip -%}
+{%- else -%}
+  {%- assign hub_base = settings.hub_base_url | default: 'https://soccercoke-alpha.vercel.app' | strip -%}
+{%- endif -%}
+
+{%- assign hub_path = section.settings.hub_path | default: '/' -%}
+{%- assign full_url = hub_base | append: hub_path -%}
+
+<iframe
+  src="{{ full_url }}"
+  title="soccer.co.ke — World Cup 2026 & Premier League Live"
+  class="soccer-hub-iframe"
+  allow="fullscreen"
+></iframe>
+
+<style>
+  .soccer-hub-iframe {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    border: 0;
+    display: block;
+    background: #120228;
+    z-index: 2147483646;
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Full Football Hub",
+  "tag": "section",
+  "class": "section-soccer-full-site",
+  "settings": [
+    {
+      "type": "text",
+      "id": "hub_base_url",
+      "label": "Hub URL",
+      "default": "https://soccercoke-alpha.vercel.app",
+      "info": "Must be https://soccercoke-alpha.vercel.app"
+    },
+    {
+      "type": "text",
+      "id": "hub_path",
+      "label": "Page path",
+      "default": "/"
+    }
+  ],
+  "presets": [{ "name": "Full Football Hub" }]
+}
+{% endschema %}
