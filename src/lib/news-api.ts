@@ -1527,7 +1527,14 @@ async function enrichArticleImages(
     // Batch decode — one batchexecute POST instead of N individual RPCs (fewer 429s).
     if (googleLinks.length > 0) {
       try {
-        const batch = await getGoogleNewsDecoder().decodeBatch(googleLinks);
+        type BatchDecodeRow = {
+          status?: boolean;
+          source_url?: string;
+          decoded_url?: string;
+        };
+        const batch = (await getGoogleNewsDecoder().decodeBatch(
+          googleLinks
+        )) as BatchDecodeRow[];
         for (const row of batch) {
           if (
             row?.status &&
