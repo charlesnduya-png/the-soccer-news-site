@@ -3,12 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-
+import { LiveScoresNav } from "@/components/live-scores-nav";
 type NavItem =
-  | { href: string; label: string; external?: boolean }
+  | { href: string; label: string; external?: boolean; liveScores?: never }
   | {
       label: string;
       icon?: string;
+      liveScores?: boolean;
       children: { href: string; label: string; external?: boolean }[];
     };
 
@@ -16,26 +17,7 @@ const navLinks: NavItem[] = [
   { href: "/fixtures", label: "Matches" },
   { href: "/standings", label: "Table" },
   { href: "/scorers", label: "Statistics" },
-  {
-    label: "Fantasy",
-    children: [
-      {
-        href: "https://fantasy.premierleague.com/",
-        label: "Fantasy Premier League",
-        external: true,
-      },
-      {
-        href: "https://draft.premierleague.com/",
-        label: "Fantasy Draft",
-        external: true,
-      },
-      {
-        href: "https://fplchallenge.premierleague.com/",
-        label: "Fantasy Challenge",
-        external: true,
-      },
-    ],
-  },
+  { label: "Live Scores", liveScores: true, children: [] },
   { href: "/news", label: "News" },
   {
     label: "Kenya",
@@ -52,6 +34,18 @@ const navLinks: NavItem[] = [
   { href: "/teams", label: "Clubs" },
   { href: "/news", label: "Video" },
   { href: "/fixtures", label: "Watch Live" },
+];
+
+/** Lean phone strip — avoid overcrowding the mobile header. */
+const mobileNavLinks: NavItem[] = [
+  { label: "Live Scores", liveScores: true, children: [] },
+  { href: "/fixtures", label: "Matches" },
+  { href: "/standings", label: "Table" },
+  { href: "/news", label: "News" },
+  { href: "/kenya-football", label: "Kenya" },
+  { href: "/transfers", label: "Transfers" },
+  { href: "/scorers", label: "Stats" },
+  { href: "/teams", label: "Clubs" },
 ];
 
 const footerLinks = [
@@ -185,8 +179,9 @@ function NavDropdown({
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#07060f]/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+    <header className="site-header sticky top-0 z-50 border-b border-white/10 bg-[#07060f]/85 backdrop-blur-xl">
+      {/* Logo + theme toggle stay desktop/tablet only — phones use the chip strip */}
+      <div className="mx-auto hidden max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:flex sm:px-6 lg:px-8">
         <Link href="/" className="flex shrink-0 items-center gap-3">
           <Image
             src="/logo.png"
@@ -204,67 +199,75 @@ export function SiteHeader() {
           </div>
         </Link>
 
-        <nav
-          className="hidden items-center gap-0.5 lg:flex"
-          aria-label="Primary"
-        >
-          {navLinks.map((item) =>
-            "children" in item ? (
-              <NavDropdown
-                key={item.label}
-                label={item.label}
-                icon={item.icon}
-                items={item.children}
-              />
-            ) : (
-              <NavAnchor
-                key={item.label}
-                href={item.href}
-                label={item.label}
-                external={item.external}
-                className={`rounded-full px-3 py-2 text-sm font-medium transition hover:bg-white/10 hover:text-white ${
-                  item.label === "Watch Live"
-                    ? "font-semibold text-[#00ff87]"
-                    : item.label === "News"
-                      ? "nav-news-link font-semibold text-[#00ff87]"
-                      : "text-white/70"
-                }`}
-              />
-            )
-          )}
-        </nav>
-      </div>
-
-      <nav
-        className="flex gap-1 overflow-x-auto border-t border-white/5 px-4 py-2 lg:hidden"
-        aria-label="Primary mobile"
-      >
-        {navLinks.flatMap((item) =>
-          "children" in item
-            ? item.children.map((child) => (
-                <NavAnchor
-                  key={child.label}
-                  href={child.href}
-                  label={child.label}
-                  external={child.external}
-                  className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 text-xs font-medium text-white/80"
+        <div className="flex items-center gap-2">
+          <nav
+            className="hidden items-center gap-0.5 lg:flex"
+            aria-label="Primary"
+          >
+            {navLinks.map((item) =>
+              "liveScores" in item && item.liveScores ? (
+                <LiveScoresNav key={item.label} />
+              ) : "children" in item ? (
+                <NavDropdown
+                  key={item.label}
+                  label={item.label}
+                  icon={item.icon}
+                  items={item.children}
                 />
-              ))
-            : [
+              ) : (
                 <NavAnchor
                   key={item.label}
                   href={item.href}
                   label={item.label}
                   external={item.external}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  className={`rounded-full px-3 py-2 text-sm font-medium transition hover:bg-white/10 hover:text-white ${
                     item.label === "Watch Live"
-                      ? "border-[#00ff87]/40 bg-[#00ff87]/10 text-[#00ff87]"
+                      ? "font-semibold text-[#00ff87]"
                       : item.label === "News"
-                        ? "nav-news-link border-[#00ff87]/40 bg-[#00ff87]/10 font-semibold text-[#00ff87]"
-                        : "border-white/10 text-white/80"
+                        ? "nav-news-link font-semibold text-[#00ff87]"
+                        : "text-white/70"
                   }`}
-                />,
-              ]
+                />
+              )
+            )}
+          </nav>
+        </div>
+      </div>
+
+      <nav
+        className="site-header__mobile-nav flex gap-2 overflow-x-auto px-4 py-2.5 sm:border-t sm:border-white/5 lg:hidden"
+        aria-label="Primary mobile"
+      >
+        <Link
+          href="/"
+          className="site-header__mobile-logo shrink-0"
+          aria-label="soccer.co.ke home"
+        >
+          <Image
+            src="/logo.png"
+            alt=""
+            width={32}
+            height={32}
+            className="site-header__mobile-logo-img"
+            priority
+          />
+        </Link>
+        {mobileNavLinks.map((item) =>
+          "liveScores" in item && item.liveScores ? (
+            <LiveScoresNav key={item.label} compact />
+          ) : "href" in item ? (
+            <NavAnchor
+              key={item.label}
+              href={item.href}
+              label={item.label}
+              external={item.external}
+              className={`site-header__mobile-chip shrink-0 ${
+                item.label === "News"
+                  ? "nav-news-link site-header__mobile-chip--accent"
+                  : ""
+              }`}
+            />
+          ) : null
         )}
       </nav>
     </header>

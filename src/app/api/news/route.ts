@@ -3,7 +3,8 @@ import { ALL_NEWS_TOPICS, isNewsTopic } from "@/lib/league-news-config";
 import { getNewsSnapshot, type NewsTopic } from "@/lib/news-api";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/** Cold RSS only — image enrich runs in the background after publish. */
+export const maxDuration = 20;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +45,8 @@ export async function GET(request: Request) {
     {
       headers: {
         ...CORS_HEADERS,
-        "Cache-Control": "private, no-store, must-revalidate",
+        // Short edge cache — clients still poll every 2 min for freshness.
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120",
       },
     }
   );

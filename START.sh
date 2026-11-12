@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 echo ""
 echo "========================================"
-echo "  soccer.co.ke - installing and starting"
+echo "  soccer.co.ke deploy"
 echo "========================================"
 echo ""
 
@@ -13,12 +13,13 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+node scripts/check-deploy.js
+
 if [ ! -f .env.local ]; then
   echo "Creating .env.local from .env.example ..."
   cp .env.example .env.local
-  echo "Edit .env.local then run this script again."
-  echo "  NEXT_PUBLIC_SITE_URL=https://your-domain.com"
-  echo "  GNEWS_API_KEY=your-key (optional)"
+  echo "Edit .env.local and set NEXT_PUBLIC_SITE_URL=https://your-domain.com"
+  echo "Then run this script again."
   exit 0
 fi
 
@@ -31,7 +32,8 @@ npm run build
 echo ""
 echo "========================================"
 echo "  READY - open http://localhost:3000"
-echo "  (or http://YOUR-SERVER-IP:3000)"
+echo "  If Cloudflare shows 522, test IP:3000"
+echo "  or set DNS to grey-cloud temporarily."
 echo "  Press Ctrl+C to stop"
 echo "========================================"
 echo ""

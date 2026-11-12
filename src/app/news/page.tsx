@@ -6,9 +6,10 @@ import { NewsFeed } from "@/components/news-feed";
 import { NewsSourceBadge } from "@/components/news-source-badge";
 import { PageHero } from "@/components/page-hero";
 import { getNewsTopicFromParam, newsTopicLabel } from "@/lib/league-news-config";
+import { getNews } from "@/lib/news-api";
 import { newsTopicMetadata } from "@/lib/seo";
 
-export const revalidate = 300;
+export const revalidate = 120;
 
 type NewsPageProps = {
   searchParams: Promise<{ topic?: string }>;
@@ -26,6 +27,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
   const { topic: topicParam } = await searchParams;
   const topic = getNewsTopicFromParam(topicParam);
   const label = newsTopicLabel(topic);
+  const articles = await getNews(24, topic);
 
   return (
     <>
@@ -40,16 +42,12 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
           <LeagueNewsPicker active={topic} />
         </Suspense>
         <NewsSourceBadge topic={topic} />
-        <NewsFeed limit={24} topic={topic} loadingLabel={`Loading ${label} news…`} />
-        <p className="mt-8 text-center text-xs text-white/30">
-          JSON feed available at{" "}
-          <a
-            href={`/api/news?limit=24&topic=${topic}`}
-            className="text-[#00ff87] hover:underline"
-          >
-            /api/news?topic={topic}
-          </a>
-        </p>
+        <NewsFeed
+          limit={24}
+          topic={topic}
+          initialArticles={articles}
+          loadingLabel={`Loading ${label} news…`}
+        />
       </div>
     </>
   );

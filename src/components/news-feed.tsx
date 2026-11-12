@@ -46,17 +46,46 @@ export function NewsFeed({
   const { error } = useLiveRefresh<NewsResponse>({
     url: `/api/news?limit=${limit}&topic=${topic}`,
     intervalMs: REFRESH_MS,
+    immediate: initialArticles.length === 0,
     onData: (data) => {
-      if (data.articles?.length) {
-        setArticles(data.articles);
-        setSourceCount(data.sources?.length ?? 0);
-      } else if (initialArticles.length === 0) {
-        // keep empty
-      }
       setFetchedAt(data.fetchedAt ?? null);
-      setDegraded(Boolean(data.degraded));
-      setIsFallback(Boolean(data.isFallback));
       setLoading(false);
+
+      if (!data.articles?.length) {
+        setDegraded(Boolean(data.degraded));
+        setIsFallback(Boolean(data.isFallback));
+        return;
+      }
+
+      setArticles((current) => {
+        const keepCurrent =
+          Boolean(data.isFallback) &&
+          current.length > 0 &&
+          data.articles.length < Math.min(3, current.length);
+        if (keepCurrent) return current;
+
+        const previousById = new Map(
+          current
+            .filter((article) => article.image)
+            .map((article) => [article.id, article.image as string])
+        );
+        const next = data.articles.map((article) => {
+          if (article.image) return article;
+          const image = previousById.get(article.id);
+          return image ? { ...article, image } : article;
+        });
+
+        const nextImaged = next.filter((article) => article.image).length;
+        const currentImaged = current.filter((article) => article.image).length;
+        if (current.length > 0 && currentImaged >= 3 && nextImaged === 0) {
+          return current;
+        }
+
+        setSourceCount(data.sources?.length ?? 0);
+        setDegraded(Boolean(data.degraded) && next.length === 0);
+        setIsFallback(Boolean(data.isFallback) && next.length === 0);
+        return next;
+      });
     },
   });
 
@@ -66,7 +95,7 @@ export function NewsFeed({
         {Array.from({ length: Math.min(limit, 6) }).map((_, i) => (
           <div
             key={i}
-            className="animate-pulse overflow-hidden rounded-2xl border border-white/10 bg-[#1a0533]/50"
+            className="news-card news-card--skeleton animate-pulse overflow-hidden rounded-2xl border"
           >
             <div className="aspect-[16/9] bg-white/5" />
             <div className="space-y-3 p-5">
@@ -85,18 +114,18 @@ export function NewsFeed({
     <>
       {error && (
         <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          {error} — showing cached or RSS fallback where available.
+          {error.includes("522")
+            ? "Host timed out (HTTP 522) — your Node app is slow or unreachable behind Cloudflare. News shows cached/RSS fallback; advert images at /banners should still load if public/ was deployed."
+            : `${error} — showing cached or RSS fallback where available.`}
         </p>
       )}
-      {!error && degraded && (
+      {!error && isFallback && (
         <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          {isFallback
-            ? "Live sources are temporarily unavailable — showing backup stories."
-            : "Some news sources are temporarily unavailable — showing the latest verified stories."}
+          Live sources are temporarily unavailable — showing backup stories.
         </p>
       )}
       {!loading && articles.length > 0 && (
-        <p className="mb-4 text-sm text-white/40">
+        <p className="news-feed__meta mb-4 text-sm">
           {articles.length} stories
           {articles.some((a) => a.videoUrl)
             ? ` · ${articles.filter((a) => a.videoUrl).length} with video`

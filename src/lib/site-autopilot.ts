@@ -2,11 +2,10 @@ import { revalidatePath } from "next/cache";
 import { getConnectedApis, getSiteControllers } from "@/lib/api-config";
 import { getLiveMatches, getMatches, getStandings, isUsingLiveApi } from "@/lib/football-api";
 import {
-  getKenyanFixtures,
-  getKenyanResults,
+  getKenyanMatchBoard,
   getKenyanTeams,
 } from "@/lib/kenya-football-api";
-import { clearNewsCache, getNewsSnapshot } from "@/lib/news-api";
+import { getNewsSnapshot } from "@/lib/news-api";
 
 export type PulseSnapshot = {
   ok: boolean;
@@ -34,7 +33,8 @@ type PulseState = {
   lastError: string | null;
 };
 
-const WARM_INTERVAL_MS = 3 * 60 * 1000;
+/** Align with client news poll so pulse keeps the feed warm. */
+const WARM_INTERVAL_MS = 2 * 60 * 1000;
 const CLIENT_REFRESH_MS = 2 * 60 * 1000;
 
 let pulse: PulseState = {
@@ -88,6 +88,17 @@ export function getPulseSnapshot(): PulseSnapshot {
   };
 }
 
+async function warmPrimaryNews() {
+  // Refresh primary topics without wiping the cache first — that forced
+  // every visitor/cron into a cold 4× full rebuild and slowed the site.
+  return Promise.all([
+    getNewsSnapshot(24, "european-leagues"),
+    getNewsSnapshot(16, "transfers"),
+    getNewsSnapshot(16, "kenyan-football"),
+    getNewsSnapshot(16, "premier-league"),
+  ]);
+}
+
 /**
  * Warms news + football caches and revalidates key pages.
  * Safe to call often — concurrent calls share one in-flight warm.
@@ -101,35 +112,27 @@ export async function warmSiteData(force = false): Promise<PulseSnapshot> {
 
   warmInFlight = (async () => {
     const sources: string[] = [];
-    const connected = getConnectedApis();
     const liveFootball = isUsingLiveApi();
 
     try {
-      clearNewsCache();
-
       if (!liveFootball) sources.push("fallback-football");
 
-      const [
-        newsSnapshot,
-        transfersSnapshot,
-        kenyaNewsSnapshot,
-        standings,
-        live,
-        fixtures,
-        kenyaTeams,
-        kenyaFixtures,
-        kenyaResults,
-      ] = await Promise.all([
-        getNewsSnapshot(12, "european-leagues"),
-        getNewsSnapshot(10, "transfers"),
-        getNewsSnapshot(8, "kenyan-football"),
+      // News first (critical path), football APIs in parallel with it.
+      const newsPromise = warmPrimaryNews();
+      const footballPromise = Promise.all([
         getStandings(),
         liveFootball ? getLiveMatches() : Promise.resolve([]),
         getMatches("SCHEDULED"),
         getKenyanTeams(),
-        getKenyanFixtures(),
-        getKenyanResults(),
+        getKenyanMatchBoard(),
       ]);
+
+      const [
+        [newsSnapshot, transfersSnapshot, kenyaNewsSnapshot, premierSnapshot],
+        [standings, live, fixtures, kenyaTeams, kenyaBoard],
+      ] = await Promise.all([newsPromise, footballPromise]);
+      const kenyaFixtures = [...kenyaBoard.live, ...kenyaBoard.upcoming];
+      const kenyaResults = kenyaBoard.recent;
 
       const news = newsSnapshot.articles;
       const transfers = transfersSnapshot.articles;
@@ -137,7 +140,8 @@ export async function warmSiteData(force = false): Promise<PulseSnapshot> {
       sources.push(
         ...newsSnapshot.successfulSources,
         ...transfersSnapshot.successfulSources,
-        ...kenyaNewsSnapshot.successfulSources
+        ...kenyaNewsSnapshot.successfulSources,
+        ...premierSnapshot.successfulSources
       );
 
       if (
@@ -151,6 +155,7 @@ export async function warmSiteData(force = false): Promise<PulseSnapshot> {
       if (news.length) sources.push("european-league-news");
       if (transfers.length) sources.push("transfers");
       if (kenyaNews.length) sources.push("kenyan-football-news");
+      if (premierSnapshot.articles.length) sources.push("premier-league-news");
       if (standings.length) sources.push(liveFootball ? "standings" : "standings-fallback");
       if (live.length) sources.push("live-matches");
       if (fixtures.length) sources.push(liveFootball ? "fixtures" : "fixtures-fallback");
@@ -175,7 +180,7 @@ export async function warmSiteData(force = false): Promise<PulseSnapshot> {
 
       pulse = {
         updatedAt: Date.now(),
-        newsCount: news.length,
+        newsCount: news.length + premierSnapshot.articles.length,
         transferCount: transfers.length,
         standingsCount: standings.length,
         liveMatchCount: live.length,

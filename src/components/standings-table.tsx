@@ -7,12 +7,48 @@ interface StandingsTableProps {
   compact?: boolean;
 }
 
+function formatGd(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
 export function StandingsTable({ standings, compact = false }: StandingsTableProps) {
   const rows = compact ? standings.slice(0, 10) : standings;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#1a0533]/80">
-      <div className="overflow-x-auto">
+    <div className="standings-table overflow-hidden rounded-2xl border border-white/10 bg-[#1a0533]/80">
+      {/* Phone-first: key columns only, no sideways scroll */}
+      <ol className="standings-table__mobile" aria-label="Premier League table">
+        <li className="standings-table__mobile-head" aria-hidden="true">
+          <span className="standings-table__pos">#</span>
+          <span className="standings-table__team">Team</span>
+          <span className="standings-table__stat">P</span>
+          <span className="standings-table__stat">GD</span>
+          <span className="standings-table__pts">Pts</span>
+        </li>
+        {rows.map((row) => (
+          <li
+            key={row.team.id}
+            className={`standings-table__mobile-row ${getPositionZone(row.position)}`}
+          >
+            <span className="standings-table__pos">{row.position}</span>
+            <span className="standings-table__team">
+              <Image
+                src={row.team.crest}
+                alt=""
+                width={22}
+                height={22}
+                className="standings-table__crest h-5 w-5 object-contain"
+              />
+              <span className="standings-table__name">{row.team.shortName}</span>
+            </span>
+            <span className="standings-table__stat">{row.playedGames}</span>
+            <span className="standings-table__stat">{formatGd(row.goalDifference)}</span>
+            <span className="standings-table__pts">{row.points}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="standings-table__desktop overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-white/10 bg-white/5 text-left text-xs uppercase tracking-wider text-white/50">
@@ -55,7 +91,7 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
                 <td className="px-4 py-3 text-center text-white/70">{row.goalsFor}</td>
                 <td className="px-4 py-3 text-center text-white/70">{row.goalsAgainst}</td>
                 <td className="px-4 py-3 text-center text-white/70">
-                  {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                  {formatGd(row.goalDifference)}
                 </td>
                 {!compact && (
                   <td className="px-4 py-3">
@@ -84,7 +120,7 @@ export function StandingsTable({ standings, compact = false }: StandingsTablePro
       </div>
 
       {!compact && (
-        <div className="flex flex-wrap gap-4 border-t border-white/10 px-4 py-3 text-xs text-white/50">
+        <div className="standings-table__legend flex flex-wrap gap-4 border-t border-white/10 px-4 py-3 text-xs text-white/50">
           <span className="flex items-center gap-2">
             <span className="h-3 w-1 rounded bg-emerald-400" /> Champions League
           </span>

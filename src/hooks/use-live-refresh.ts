@@ -10,11 +10,14 @@ export function useLiveRefresh<T>({
   url,
   intervalMs,
   enabled = true,
+  immediate = true,
   onData,
 }: {
   url: string;
   intervalMs: number;
   enabled?: boolean;
+  /** When false, skip the mount fetch and wait for the first interval (SSR already has data). */
+  immediate?: boolean;
   onData: (data: T) => void;
 }) {
   const onDataRef = useRef(onData);
@@ -60,7 +63,12 @@ export function useLiveRefresh<T>({
       }
     }
 
-    load();
+    if (immediate) {
+      load();
+    } else {
+      timeoutId = window.setTimeout(load, intervalMs);
+    }
+
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         if (timeoutId) window.clearTimeout(timeoutId);
@@ -75,7 +83,7 @@ export function useLiveRefresh<T>({
       if (timeoutId) window.clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [url, intervalMs, enabled]);
+  }, [url, intervalMs, enabled, immediate]);
 
   return { error, updatedAt };
 }

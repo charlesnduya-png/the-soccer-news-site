@@ -17,10 +17,22 @@ interface NewsCardProps {
   featured?: boolean;
 }
 
-function NewsImage({ src, priority }: { src: string; priority?: boolean }) {
+function NewsImage({
+  src,
+  articleLink,
+  articleId,
+  priority,
+}: {
+  src?: string;
+  articleLink?: string;
+  articleId?: string;
+  priority?: boolean;
+}) {
   return (
     <NewsArticleImage
       src={src}
+      articleLink={articleLink}
+      articleId={articleId}
       priority={priority}
       className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
     />
@@ -69,30 +81,29 @@ export function NewsCard({ article, featured = false }: NewsCardProps) {
           ? `Watch ${article.title} on ${embed?.kind ?? "video source"}`
           : `Read ${article.title}`
       }
-      className={`group flex flex-col overflow-hidden rounded-2xl border bg-gradient-to-b transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.4)] ${
-        hasVideo
-          ? "border-white/15 from-[#15101e] to-[#09070e] hover:border-[#00ff87]/45"
-          : "border-white/10 from-[#1f0a3d]/90 to-[#140528]/95 hover:border-[#00ff87]/35"
-      } ${
-        featured ? "sm:col-span-2 sm:grid sm:grid-cols-2" : ""
-      }`}
+      className={`news-card group flex flex-col overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${
+        hasVideo ? "news-card--video" : "news-card--story"
+      } ${featured ? "news-card--featured sm:col-span-2 sm:grid sm:grid-cols-2" : ""}`}
     >
       <div
-        className={`relative overflow-hidden bg-gradient-to-br from-[#37003c] to-[#07060f] ${
-          featured ? "aspect-[16/10] sm:aspect-auto sm:min-h-[260px]" : "aspect-video"
+        className={`news-card__media relative overflow-hidden ${
+          hasVideo
+            ? "aspect-video"
+            : featured
+              ? "aspect-[16/10] sm:aspect-auto sm:min-h-[260px]"
+              : "aspect-video"
         }`}
       >
-        {poster ? (
-          <NewsImage src={poster} priority={featured} />
-        ) : (
-          <NewsImage src="/news-placeholder.svg" priority={featured} />
-        )}
+        <NewsImage
+          src={poster}
+          articleLink={article.link}
+          articleId={article.id}
+          priority={featured}
+        />
 
         <div
-          className={`absolute inset-0 ${
-            hasVideo
-              ? "bg-gradient-to-t from-[#07060f]/85 via-[#07060f]/20 to-transparent"
-              : "bg-gradient-to-t from-[#07060f]/70 via-transparent to-transparent"
+          className={`news-card__shade absolute inset-0 ${
+            hasVideo ? "news-card__shade--video" : "news-card__shade--story"
           }`}
         />
 
@@ -116,31 +127,31 @@ export function NewsCard({ article, featured = false }: NewsCardProps) {
         ) : null}
       </div>
 
-      <div className={`flex flex-1 flex-col p-5 ${featured ? "sm:justify-center" : ""}`}>
+      <div className={`news-card__body flex flex-1 flex-col p-5 ${featured ? "sm:justify-center" : ""}`}>
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-[#00ff87]/20 px-2 py-0.5 font-semibold text-[#00ff87]">
+          <span className="news-card__source rounded-full px-2 py-0.5 font-semibold">
             {article.source}
           </span>
           {hasVideo ? (
-            <span className="rounded-full border border-[#00ff87]/25 bg-[#00ff87]/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-[#00ff87]/90">
+            <span className="news-card__video-tag rounded-full border px-2 py-0.5 font-semibold uppercase tracking-wide">
               Video
             </span>
           ) : null}
-          <span className="text-white/40">{formatNewsDate(article.pubDate)}</span>
+          <span className="news-card__date">{formatNewsDate(article.pubDate)}</span>
         </div>
         <h3
-          className={`font-bold text-white transition group-hover:text-[#00ff87] ${
+          className={`news-card__title font-bold transition ${
             featured ? "text-xl sm:text-2xl" : "text-base"
           }`}
         >
           {article.title}
         </h3>
         {cardDescription && (
-          <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">
+          <p className="news-card__excerpt mt-2 line-clamp-3 text-sm leading-6">
             {cardDescription}
           </p>
         )}
-        <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#00ff87]">
+        <span className="news-card__cta mt-4 inline-flex items-center gap-1.5 text-sm font-semibold">
           {hasVideo ? "Watch video now" : "Open & read"}
           <span
             aria-hidden
@@ -161,7 +172,7 @@ interface NewsGridProps {
 export function NewsGrid({ articles }: NewsGridProps) {
   if (articles.length === 0) {
     return (
-      <div className="rounded-xl border border-white/10 bg-[#110c1c]/50 px-6 py-12 text-center text-white/50">
+      <div className="news-empty rounded-xl border px-6 py-12 text-center">
         No news articles available right now.
       </div>
     );

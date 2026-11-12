@@ -1,8 +1,12 @@
 import type { Match, Team } from "@/lib/types";
 
-const API_BASE = "https://www.thesportsdb.com/api/v1/json/3";
+/** Free-tier public key is `123`. Paid/dev keys go in THESPORTSDB_API_KEY. Key `3` is blocked (403). */
+const SPORTSDB_KEY = process.env.THESPORTSDB_API_KEY?.trim() || "123";
+const API_BASE = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}`;
 const LEAGUE_ID = "4745";
-const KENYAN_SEASONS = ["2025-2026", "2024-2025", "2023-2024"];
+const KENYAN_SEASONS = ["2026-2027", "2025-2026", "2024-2025", "2023-2024"];
+const FETCH_GAP_MS = 200;
+const BOARD_TTL_MS = 90_000;
 
 const genericCrest = "/logo.png";
 
@@ -35,6 +39,10 @@ const fallbackKenyanTeams: Team[] = [
 
 const kenyanTeamIds = new Set(fallbackKenyanTeams.map((team) => team.id));
 
+let boardCache: { at: number; board: KenyanMatchBoard } | null = null;
+let lastGoodBoard: KenyanMatchBoard | null = null;
+let boardInflight: Promise<KenyanMatchBoard> | null = null;
+
 function kenyaTeam(
   id: number,
   name: string,
@@ -60,6 +68,7 @@ type SportsDbEvent = {
   dateEvent?: string | null;
   strTime?: string | null;
   strStatus?: string | null;
+  strPostponed?: string | null;
   intRound?: string | null;
   idHomeTeam?: string | null;
   idAwayTeam?: string | null;
@@ -74,31 +83,25 @@ type SportsDbEvent = {
   strCountry?: string | null;
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function fetchSportsDb<T>(path: string, revalidate: number): Promise<T | null> {
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       next: { revalidate },
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(10_000),
+      headers: {
+        "User-Agent": "soccer.co.ke/1.0 (+https://soccer.co.ke)",
+        Accept: "application/json",
+      },
     });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;
   }
-}
-
-async function mapInBatches<T, R>(
-  items: T[],
-  batchSize: number,
-  mapper: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let index = 0; index < items.length; index += batchSize) {
-    const batch = items.slice(index, index + batchSize);
-    const batchResults = await Promise.all(batch.map(mapper));
-    results.push(...batchResults);
-  }
-  return results;
 }
 
 export async function getKenyanTeams(): Promise<Team[]> {
@@ -108,7 +111,7 @@ export async function getKenyanTeams(): Promise<Team[]> {
   );
 
   const apiTeams = (data?.teams ?? [])
-    .filter((team) => team.strCountry === "Kenya")
+    .filter((team) => !team.strCountry || team.strCountry === "Kenya")
     .map((team) => {
       const fallback = fallbackKenyanTeams.find(
         (item) => item.id === Number(team.idTeam)
@@ -127,80 +130,85 @@ export async function getKenyanTeams(): Promise<Team[]> {
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function isKenyanEvent(event: SportsDbEvent): boolean {
+/** Strict KPL-only — excludes CAF, friendlies, and other club competitions. */
+function isKplEvent(event: SportsDbEvent): boolean {
   if (event.idLeague === LEAGUE_ID) return true;
-  if (event.strCountry === "Kenya") return true;
-  if ((event.strLeague ?? "").toLowerCase().includes("kenyan premier")) return true;
+  const league = (event.strLeague ?? "").toLowerCase();
+  return (
+    league.includes("kenyan premier") ||
+    league.includes("kenya premier") ||
+    league.includes("fkf premier") ||
+    league.includes("sportpesa premier")
+  );
+}
 
+function bothTeamsAreKplClubs(event: SportsDbEvent): boolean {
   const homeId = Number(event.idHomeTeam);
   const awayId = Number(event.idAwayTeam);
-  return kenyanTeamIds.has(homeId) || kenyanTeamIds.has(awayId);
+  const homeKnown =
+    kenyanTeamIds.has(homeId) ||
+    fallbackKenyanTeams.some((team) =>
+      namesMatch(team.name, event.strHomeTeam)
+    );
+  const awayKnown =
+    kenyanTeamIds.has(awayId) ||
+    fallbackKenyanTeams.some((team) =>
+      namesMatch(team.name, event.strAwayTeam)
+    );
+  return homeKnown && awayKnown;
 }
 
-async function collectSeasonEvents(): Promise<SportsDbEvent[]> {
-  const responses = await Promise.all(
-    KENYAN_SEASONS.map((season) =>
-      fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
-        `/eventsseason.php?id=${LEAGUE_ID}&s=${season}`,
-        900
-      )
-    )
-  );
-
-  return responses.flatMap((response) => response?.events ?? []);
+function namesMatch(a: string, b: string): boolean {
+  const norm = (value: string) =>
+    value.toLowerCase().replace(/\s+fc$/i, "").replace(/[^a-z0-9]/g, "");
+  const na = norm(a);
+  const nb = norm(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
 }
 
-async function collectLeagueEvents(): Promise<SportsDbEvent[]> {
-  const [next, past, ...seasonEvents] = await Promise.all([
-    fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
-      `/eventsnextleague.php?id=${LEAGUE_ID}`,
-      900
+/**
+ * League endpoints only — sequential + short gap so free-tier SportsDB
+ * does not 429 when fixtures/results/autopilot hit the board together.
+ */
+async function collectKplEvents(): Promise<SportsDbEvent[]> {
+  const paths = [
+    `/eventsnextleague.php?id=${LEAGUE_ID}`,
+    `/eventspastleague.php?id=${LEAGUE_ID}`,
+    ...KENYAN_SEASONS.map(
+      (season) => `/eventsseason.php?id=${LEAGUE_ID}&s=${season}`
     ),
-    fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
-      `/eventspastleague.php?id=${LEAGUE_ID}`,
-      900
-    ),
-    ...KENYAN_SEASONS.map((season) =>
-      fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
-        `/eventsseason.php?id=${LEAGUE_ID}&s=${season}`,
-        900
-      )
-    ),
-  ]);
-
-  return [
-    ...(next?.events ?? []),
-    ...(past?.events ?? []),
-    ...seasonEvents.flatMap((response) => response?.events ?? []),
   ];
-}
 
-async function collectTeamEvents(teams: Team[]): Promise<SportsDbEvent[]> {
-  const teamEvents = await mapInBatches(teams, 6, async (team) => {
-    const [next, last] = await Promise.all([
-      fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
-        `/eventsnext.php?id=${team.id}`,
-        900
-      ),
-      fetchSportsDb<{ results?: SportsDbEvent[] | null }>(
-        `/eventslast.php?id=${team.id}`,
-        900
-      ),
-    ]);
+  const responses: Array<{ events?: SportsDbEvent[] | null } | null> = [];
+  // Fetch in pairs — faster than fully serial, safer than blasting all at once.
+  for (let index = 0; index < paths.length; index += 2) {
+    if (index > 0) await sleep(FETCH_GAP_MS);
+    const batch = paths.slice(index, index + 2);
+    const batchResults = await Promise.all(
+      batch.map((path, batchIndex) =>
+        fetchSportsDb<{ events?: SportsDbEvent[] | null }>(
+          path,
+          index + batchIndex < 2 ? 900 : 1800
+        )
+      )
+    );
+    responses.push(...batchResults);
+  }
 
-    return [...(next?.events ?? []), ...(last?.results ?? [])];
-  });
-
-  return teamEvents.flat();
-}
-
-async function collectKenyanEvents(): Promise<SportsDbEvent[]> {
-  const teams = await getKenyanTeams();
-  const events = await Promise.all([collectLeagueEvents(), collectTeamEvents(teams)]);
   const unique = new Map<string, SportsDbEvent>();
-
-  for (const event of events.flat()) {
-    if (!isKenyanEvent(event)) continue;
+  for (const event of responses.flatMap((response) => response?.events ?? [])) {
+    if (!isKplEvent(event) && !bothTeamsAreKplClubs(event)) continue;
+    const league = (event.strLeague ?? "").toLowerCase();
+    if (
+      league.includes("caf") ||
+      league.includes("champions") ||
+      league.includes("confederation") ||
+      league.includes("friendly") ||
+      league.includes("world cup")
+    ) {
+      continue;
+    }
+    if (!isKplEvent(event)) continue;
     unique.set(event.idEvent, event);
   }
 
@@ -213,19 +221,45 @@ function parseScore(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function eventKickoffMs(event: SportsDbEvent): number {
+  const raw =
+    event.strTimestamp ||
+    `${event.dateEvent ?? "1970-01-01"}T${(event.strTime || "12:00:00").slice(0, 8)}Z`;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 function mapSportsDbStatus(event: SportsDbEvent): string {
   const status = (event.strStatus ?? "").trim().toUpperCase();
+  const postponed = (event.strPostponed ?? "").trim().toLowerCase();
   const home = parseScore(event.intHomeScore);
   const away = parseScore(event.intAwayScore);
+  const kickoff = eventKickoffMs(event);
+  const now = Date.now();
 
-  if (["1H", "2H", "LIVE", "IN PLAY", "IN_PLAY", "ET", "BT", "P", "PEN"].includes(status)) {
-    return status === "HT" ? "PAUSED" : "IN_PLAY";
+  if (postponed === "yes" || status === "PST" || status === "POSTPONED") {
+    return "POSTPONED";
+  }
+
+  // Trust kickoff time over messy provider status strings.
+  if (kickoff > now + 10 * 60 * 1000) return "SCHEDULED";
+  if (
+    home !== null &&
+    away !== null &&
+    kickoff > 0 &&
+    kickoff < now - 2.5 * 60 * 60 * 1000
+  ) {
+    return "FINISHED";
+  }
+
+  if (["1H", "2H", "LIVE", "IN PLAY", "IN_PLAY", "ET", "BT", "P"].includes(status)) {
+    return "IN_PLAY";
   }
   if (status === "HT") return "PAUSED";
-  if (status === "POSTPONED") return "POSTPONED";
   if (status === "CANCELLED") return "CANCELLED";
   if (status === "FT" || status === "AET" || status === "PEN") return "FINISHED";
   if (status === "NS" || status === "TBD" || status === "NOT STARTED" || status === "") {
+    if (home !== null && away !== null) return "FINISHED";
     return "SCHEDULED";
   }
   if (home !== null && away !== null) return "FINISHED";
@@ -246,7 +280,7 @@ function eventTeam(
   crest?: string | null
 ): Team {
   const known = fallbackKenyanTeams.find(
-    (team) => team.id === Number(id) || team.name.replace(/ FC$/, "") === name
+    (team) => team.id === Number(id) || namesMatch(team.name, name)
   );
   return {
     id: Number(id) || known?.id || Math.abs(hashCode(name)),
@@ -304,6 +338,7 @@ function splitKenyanMatches(matches: Match[]): KenyanMatchBoard {
   const upcoming = matches
     .filter((match) => {
       if (isFinishedStatus(match.status) || isLiveStatus(match.status)) return false;
+      if (match.status === "POSTPONED" || match.status === "CANCELLED") return false;
       return new Date(match.utcDate).getTime() >= now - 6 * 60 * 60 * 1000;
     })
     .sort(byDate)
@@ -312,9 +347,37 @@ function splitKenyanMatches(matches: Match[]): KenyanMatchBoard {
   return { live, upcoming, recent };
 }
 
+function boardHasMatches(board: KenyanMatchBoard): boolean {
+  return board.live.length + board.upcoming.length + board.recent.length > 0;
+}
+
+async function loadKenyanMatchBoard(): Promise<KenyanMatchBoard> {
+  const events = await collectKplEvents();
+  const board = splitKenyanMatches(events.map(toMatch));
+  if (boardHasMatches(board)) {
+    lastGoodBoard = board;
+    return board;
+  }
+  return lastGoodBoard ?? board;
+}
+
 export async function getKenyanMatchBoard(): Promise<KenyanMatchBoard> {
-  const events = await collectKenyanEvents();
-  return splitKenyanMatches(events.map(toMatch));
+  const now = Date.now();
+  if (boardCache && now - boardCache.at < BOARD_TTL_MS) {
+    return boardCache.board;
+  }
+  if (boardInflight) return boardInflight;
+
+  boardInflight = loadKenyanMatchBoard()
+    .then((board) => {
+      boardCache = { at: Date.now(), board };
+      return board;
+    })
+    .finally(() => {
+      boardInflight = null;
+    });
+
+  return boardInflight;
 }
 
 export async function getKenyanFixtures(): Promise<Match[]> {

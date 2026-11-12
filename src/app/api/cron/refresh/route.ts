@@ -11,14 +11,17 @@ const CORS_HEADERS = {
 };
 
 function isAuthorized(request: Request): boolean {
+  // Vercel Cron sends this on scheduled invocations.
+  if (request.headers.get("x-vercel-cron") === "1") return true;
+
   const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    // Open in local/dev only — set CRON_SECRET in production
-    return process.env.NODE_ENV !== "production";
+  const header = request.headers.get("authorization");
+  if (secret) {
+    return header === `Bearer ${secret}`;
   }
 
-  const header = request.headers.get("authorization");
-  return header === `Bearer ${secret}`;
+  // No secret configured — allow in non-production; block anonymous prod hits.
+  return process.env.NODE_ENV !== "production";
 }
 
 export async function OPTIONS() {

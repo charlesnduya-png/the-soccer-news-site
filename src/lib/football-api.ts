@@ -5,6 +5,11 @@ import {
   fallbackScorers,
   fallbackStandings,
 } from "./fallback-data";
+import {
+  getPremierLeagueCompetitionFromFotMob,
+  getPremierLeagueMatchesFromFotMob,
+  getPremierLeagueStandingsFromFotMob,
+} from "./premier-league-fotmob";
 import type {
   CompetitionInfo,
   Match,
@@ -48,7 +53,10 @@ export async function getCompetition(): Promise<CompetitionInfo> {
     currentSeason: CompetitionInfo["currentSeason"];
   }>(`/competitions/${COMPETITION}`, 3600);
 
-  return data ?? fallbackCompetition;
+  if (data) return data;
+
+  const fotmob = await getPremierLeagueCompetitionFromFotMob();
+  return fotmob ?? fallbackCompetition;
 }
 
 export async function getStandings(): Promise<StandingRow[]> {
@@ -57,7 +65,10 @@ export async function getStandings(): Promise<StandingRow[]> {
   }>(`/competitions/${COMPETITION}/standings`, 120);
 
   const table = data?.standings?.find((s) => s.type === "TOTAL")?.table;
-  return table ?? fallbackStandings;
+  if (table?.length) return table;
+
+  const fotmob = await getPremierLeagueStandingsFromFotMob();
+  return fotmob.length ? fotmob : fallbackStandings;
 }
 
 export async function getTeams(): Promise<Team[]> {
@@ -68,6 +79,11 @@ export async function getTeams(): Promise<Team[]> {
 
   if (data?.teams) {
     return data.teams.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const fotmob = await getPremierLeagueStandingsFromFotMob();
+  if (fotmob.length) {
+    return fotmob.map((row) => row.team).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   return fallbackStandings.map((row) => row.team);
@@ -97,13 +113,15 @@ export async function getMatches(status?: "SCHEDULED" | "FINISHED" | "LIVE"): Pr
     );
   }
 
+  // Prefer real FotMob fixtures over invented placeholder matches.
+  const fotmobMatches = await getPremierLeagueMatchesFromFotMob(status);
+  if (fotmobMatches.length) {
+    return fotmobMatches;
+  }
+
   if (status === "FINISHED") return fallbackResults;
   if (status === "SCHEDULED") return fallbackFixtures;
-
-  const live = (data?.matches ?? []).filter((m) =>
-    ["IN_PLAY", "PAUSED", "LIVE"].includes(m.status)
-  );
-  if (live.length) return live;
+  if (status === "LIVE") return [];
 
   return [...fallbackFixtures.slice(0, 3), ...fallbackResults.slice(0, 3)];
 }
@@ -114,7 +132,11 @@ export async function getLiveMatches(): Promise<Match[]> {
     30
   );
 
-  return data?.matches ?? [];
+  if (data?.matches?.length) {
+    return data.matches;
+  }
+
+  return getPremierLeagueMatchesFromFotMob("LIVE");
 }
 
 export function isUsingLiveApi(): boolean {
@@ -135,11 +157,19 @@ export async function getMatchBoard(): Promise<MatchBoard> {
   ]);
 
   const now = Date.now();
-  const recentWindowMs = 14 * 24 * 60 * 60 * 1000;
-  const recent = finished
+  const recentWindowMs = 21 * 24 * 60 * 60 * 1000;
+  let recent = finished
     .filter((match) => now - new Date(match.utcDate).getTime() <= recentWindowMs)
     .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime())
     .slice(0, 12);
+
+  // Off-season / early season: still show the latest real results instead of nothing.
+  if (recent.length === 0 && finished.length > 0) {
+    recent = finished
+      .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime())
+      .slice(0, 12);
+  }
+
   const liveIds = new Set(live.map((match) => match.id));
   const upcoming = scheduled
     .filter(

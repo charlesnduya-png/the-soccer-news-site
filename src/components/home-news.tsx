@@ -17,10 +17,22 @@ interface HomeNewsProps {
   limit?: number;
 }
 
-function ArticleImage({ src, priority }: { src?: string; priority?: boolean }) {
+function ArticleImage({
+  src,
+  articleLink,
+  articleId,
+  priority,
+}: {
+  src?: string;
+  articleLink?: string;
+  articleId?: string;
+  priority?: boolean;
+}) {
   return (
     <NewsArticleImage
       src={src}
+      articleLink={articleLink}
+      articleId={articleId}
       priority={priority}
       className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
     />
@@ -66,7 +78,12 @@ function FeaturedHero({ article }: { article: NewsArticle }) {
       className="group relative block min-h-[300px] overflow-hidden sm:min-h-[400px] lg:min-h-[460px]"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-[#37003c] to-[#07060f]">
-        <ArticleImage src={poster} priority />
+        <ArticleImage
+          src={poster}
+          articleLink={article.link}
+          articleId={article.id}
+          priority
+        />
       </div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#07060f]/80 via-[#07060f]/25 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-r from-[#07060f]/45 via-transparent to-transparent" />
@@ -109,7 +126,11 @@ function SecondaryStory({ article }: { article: NewsArticle }) {
       className="group grid grid-cols-[7.5rem_1fr] gap-3 overflow-hidden sm:grid-cols-[9rem_1fr] sm:gap-4"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#37003c] to-[#07060f]">
-        <ArticleImage src={poster} />
+        <ArticleImage
+          src={poster}
+          articleLink={article.link}
+          articleId={article.id}
+        />
         <div className="absolute inset-0 bg-black/10 transition group-hover:bg-black/0" />
       </div>
       <div className="flex flex-col justify-center py-0.5">
@@ -144,7 +165,11 @@ function FeatureCard({ article }: { article: NewsArticle }) {
       className="group flex flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] transition hover:border-[#00ff87]/25 hover:bg-white/[0.04]"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-[#37003c] to-[#07060f]">
-        <ArticleImage src={poster} />
+        <ArticleImage
+          src={poster}
+          articleLink={article.link}
+          articleId={article.id}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-[#07060f]/60 via-transparent to-transparent" />
         {hasVideo ? (
           <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 bg-[#00ff87] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#07060f]">
@@ -202,15 +227,53 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     }
   }, [initialArticles]);
 
-  useLiveRefresh<{ articles: NewsArticle[]; fetchedAt?: string }>({
+  useLiveRefresh<{
+    articles: NewsArticle[];
+    fetchedAt?: string;
+    isFallback?: boolean;
+    degraded?: boolean;
+  }>({
     url: `/api/news?limit=${limit}&topic=european-leagues`,
     intervalMs: 2 * 60 * 1000,
+    immediate: initialArticles.length === 0,
     onData: (data) => {
-      if (data.articles?.length) {
-        setArticles(data.articles);
-      }
       setFetchedAt(data.fetchedAt ?? null);
       setLoading(false);
+
+      if (!data.articles?.length) return;
+
+      setArticles((current) => {
+        // Keep the current feed if a refresh returns empty/fallback junk.
+        if (data.isFallback && current.length > 0 && data.articles.length < 3) {
+          return current;
+        }
+
+        // Carry forward thumbnails when a refresh briefly returns image-less cards.
+        const previousById = new Map(
+          current
+            .filter((article) => article.image)
+            .map((article) => [article.id, article.image as string])
+        );
+        const previousByLink = new Map(
+          current
+            .filter((article) => article.image)
+            .map((article) => [article.link, article.image as string])
+        );
+        const next = data.articles.map((article) => {
+          if (article.image) return article;
+          const image =
+            previousById.get(article.id) ?? previousByLink.get(article.link);
+          return image ? { ...article, image } : article;
+        });
+
+        const nextImaged = next.filter((article) => article.image).length;
+        const currentImaged = current.filter((article) => article.image).length;
+        if (current.length > 0 && currentImaged >= 3 && nextImaged === 0) {
+          return current;
+        }
+
+        return next;
+      });
     },
   });
 
@@ -226,9 +289,21 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     );
   }
 
-  const [hero, ...rest] = articles;
-  const secondary = rest.slice(0, 3);
-  const features = rest.slice(3);
+  // Prefer written news for the homepage hero; keep videos in the lower grid only.
+  const newsStories = articles.filter((article) => !article.videoUrl);
+  const videoStories = articles.filter((article) => Boolean(article.videoUrl));
+  const ordered =
+    newsStories.length > 0 ? [...newsStories, ...videoStories] : articles;
+  const [hero, ...rest] = ordered;
+  const newsSecondary = rest.filter((article) => !article.videoUrl).slice(0, 3);
+  const secondary =
+    newsSecondary.length > 0
+      ? newsSecondary
+      : rest.slice(0, 3);
+  const usedIds = new Set([hero.id, ...secondary.map((article) => article.id)]);
+  const features = ordered
+    .filter((article) => !usedIds.has(article.id))
+    .slice(0, Math.max(0, limit - 1 - secondary.length));
 
   return (
     <section className="home-news" aria-label="European football news">

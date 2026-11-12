@@ -67,26 +67,39 @@ export default async function HomePage() {
     <>
       <HomeJsonLd />
 
-      <section className="home-masthead relative overflow-hidden border-b border-white/[0.08]">
+      <section className="home-masthead relative overflow-x-clip overflow-y-visible border-b border-white/[0.08]">
         <div className="home-masthead__glow pointer-events-none absolute inset-0" />
         <div className="home-masthead__pitch pointer-events-none absolute inset-0" />
         <div className="home-masthead__beam pointer-events-none absolute inset-0" />
 
-        <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
-          <div className="grid items-center gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-12">
-            <div className="min-w-0">
-              <HomeHeroHeadline />
-              <HomeQuickNav links={quickLinks} />
+        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+          <div className="grid items-center gap-6 sm:gap-10 lg:grid-cols-[0.95fr_1.15fr] lg:gap-10">
+            <div className="home-masthead__copy relative z-[1] min-w-0 overflow-visible max-lg:overflow-hidden">
+              <div
+                className="home-masthead__player pointer-events-none absolute"
+                aria-hidden="true"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/hero-player.png"
+                  alt=""
+                  className="home-masthead__player-img"
+                />
+              </div>
+              <div className="relative z-[1]">
+                <HomeHeroHeadline />
+                <HomeQuickNav links={quickLinks} />
+              </div>
             </div>
 
-            <div className="home-fade-up home-fade-up--3 flex w-full min-w-0 justify-center lg:justify-end">
+            <div className="home-fade-up home-fade-up--3 relative z-[2] flex w-full min-w-0 justify-center overflow-visible lg:justify-end">
               <JantaAdvert />
             </div>
           </div>
         </div>
       </section>
 
-      <main className="home-main mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+      <main className="home-main mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
         <HomeNews initialArticles={europeNews} limit={12} />
 
         <section className="home-section home-section--kenya mt-14 sm:mt-16 lg:mt-20">

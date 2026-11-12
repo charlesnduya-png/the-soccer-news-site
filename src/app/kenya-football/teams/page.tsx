@@ -33,7 +33,7 @@ export default async function KenyanTeamsPage() {
       />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <TeamGrid teams={teams} />
-        <p className="mt-8 text-center text-xs text-white/30">
+        <p className="news-feed__meta mt-8 text-center text-xs">
           Club details update automatically from TheSportsDB and the official league list.
         </p>
       </div>

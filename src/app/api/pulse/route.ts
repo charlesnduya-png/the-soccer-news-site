@@ -19,17 +19,19 @@ export async function OPTIONS() {
   return new NextResponse(null, { headers: CORS_HEADERS });
 }
 
-/** Public status of the site autopilot. Warms caches when data is stale. */
+/** Public status of the site autopilot. Kicks a background warm when stale. */
 export async function GET() {
-  if (isPulseStale()) {
-    await warmSiteData();
+  const stale = isPulseStale();
+  if (stale) {
+    // Never block page autopilot polls on a full news+football warm.
+    void warmSiteData();
   }
 
   return NextResponse.json(
     {
       mode: "autopilot",
       pulse: getPulseSnapshot(),
-      stale: isPulseStale(),
+      stale,
       connectedApis: getConnectedApis(),
       controllers: getSiteControllers(),
     },

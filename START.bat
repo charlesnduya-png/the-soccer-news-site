@@ -1,10 +1,10 @@
 @echo off
-title soccer.co.ke - Starting site
+title soccer.co.ke - install, build, start
 cd /d "%~dp0"
 
 echo.
 echo ========================================
-echo   soccer.co.ke - installing and starting
+echo   soccer.co.ke deploy
 echo ========================================
 echo.
 
@@ -16,13 +16,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo Checking package files...
+call node scripts\check-deploy.js
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 if not exist ".env.local" (
   echo Creating .env.local from .env.example ...
   copy /Y ".env.example" ".env.local" >nul
   echo.
-  echo IMPORTANT: Edit .env.local and set:
-  echo   NEXT_PUBLIC_SITE_URL=https://your-domain.com
-  echo   GNEWS_API_KEY=your-key  ^(optional^)
+  echo IMPORTANT: set NEXT_PUBLIC_SITE_URL to your real domain in .env.local
   echo.
   notepad ".env.local"
 )
@@ -46,7 +51,9 @@ if errorlevel 1 (
 echo.
 echo ========================================
 echo   READY - open http://localhost:3000
-echo   Press Ctrl+C to stop the server
+echo   If behind Cloudflare and you see 522,
+echo   test SERVER-IP:3000 or grey-cloud DNS.
+echo   Press Ctrl+C to stop
 echo ========================================
 echo.
 

@@ -1,25 +1,42 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { Analytics } from "@/components/analytics";
-import { FootballAssistant } from "@/components/football-assistant";
+import { DeferredWidgets } from "@/components/deferred-widgets";
 import { IframeBridge } from "@/components/iframe-bridge";
 import { SiteFooter, SiteHeader } from "@/components/layout";
-import { SiteAutopilot } from "@/components/site-autopilot";
+import { MobileZoomLock } from "@/components/mobile-zoom-lock";
+import { ThemeProvider, themeBootScript } from "@/components/theme-provider";
 import { rootMetadata } from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+  preload: true,
 });
 
 const bebas = Bebas_Neue({
   variable: "--font-bebas",
   weight: "400",
   subsets: ["latin"],
+  display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = rootMetadata;
+
+/** Mobile viewport — paired with MobileZoomLock for iOS Safari. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#07060f",
+  colorScheme: "dark",
+};
 
 export default function RootLayout({
   children,
@@ -27,15 +44,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${bebas.variable} h-full`}>
-      <body className="flex min-h-full flex-col font-sans text-white antialiased">
-        <IframeBridge />
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-        <FootballAssistant />
-        <SiteAutopilot />
-        <Analytics />
+    <html
+      lang="en"
+      className={`${inter.variable} ${bebas.variable} h-full`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
+      <body className="flex min-h-full flex-col overflow-x-hidden font-sans text-[var(--fg)] antialiased">
+        <ThemeProvider>
+          <MobileZoomLock />
+          <IframeBridge />
+          <SiteHeader />
+          <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
+          <SiteFooter />
+          <DeferredWidgets />
+          <Analytics />
+        </ThemeProvider>
       </body>
     </html>
   );

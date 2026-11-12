@@ -86,19 +86,14 @@ export function TransfersFeed({
               href={`/news/${article.id}`}
               className="group flex gap-4 px-4 py-4 transition hover:bg-white/5 sm:px-5"
             >
-              {article.image || videoPosterUrl(article.videoUrl, article.image) ? (
-                <NewsArticleImage
-                  src={
-                    videoPosterUrl(article.videoUrl, article.image) ?? article.image
-                  }
-                  className="hidden h-16 w-24 shrink-0 rounded-lg object-cover sm:block"
-                />
-              ) : (
-                <NewsArticleImage
-                  src="/news-placeholder.svg"
-                  className="hidden h-16 w-24 shrink-0 rounded-lg object-cover sm:block"
-                />
-              )}
+              <NewsArticleImage
+                src={
+                  videoPosterUrl(article.videoUrl, article.image) ?? article.image
+                }
+                articleLink={article.link}
+                articleId={article.id}
+                className="hidden h-16 w-24 shrink-0 rounded-lg object-cover sm:block"
+              />
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
                   <span className="rounded-full bg-[#00ff87]/15 px-2 py-0.5 font-semibold text-[#00ff87]">

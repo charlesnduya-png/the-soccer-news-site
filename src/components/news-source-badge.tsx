@@ -9,7 +9,7 @@ export function NewsSourceBadge({ topic = "all" }: { topic?: NewsTopic }) {
       {sources.map((source) => (
         <span
           key={source}
-          className="rounded-full border border-[#00ff87]/20 bg-[#00ff87]/10 px-3 py-1 text-xs font-medium text-[#00ff87]"
+          className="news-source-chip rounded-full border px-3 py-1 text-xs font-medium"
         >
           {source}
         </span>

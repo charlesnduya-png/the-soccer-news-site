@@ -1,16 +1,5 @@
 import { format, formatDistanceToNow, isToday, isTomorrow, parseISO } from "date-fns";
 
-/** Stable URL-safe id from an article link (for /news/[id] routes). */
-export function articleIdFromLink(link: string): string {
-  const url = link.trim();
-  let hash = 2166136261;
-  for (let i = 0; i < url.length; i++) {
-    hash ^= url.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
 export function formatMatchDate(dateString: string): string {
   const date = parseISO(dateString);
 

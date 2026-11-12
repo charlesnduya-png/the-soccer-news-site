@@ -37,10 +37,10 @@ export default async function KenyanFixturesPage() {
           recent={recent}
           upcoming={upcoming}
           competition="Kenyan Football"
-          emptyMessage="No Kenyan football matches are available right now. This page updates automatically when fixtures are announced."
+          emptyMessage="No upcoming KPL fixtures right now. Recent Kenyan Premier League results are shown when the new season schedule is not yet published."
         />
         <p className="mt-8 text-center text-xs text-white/30">
-          Fixtures update automatically from TheSportsDB.
+          Showing Kenyan Premier League matches only (CAF and friendlies excluded).
         </p>
       </div>
     </>

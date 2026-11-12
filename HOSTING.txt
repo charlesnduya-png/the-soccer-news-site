@@ -1,54 +1,66 @@
 soccer.co.ke — Deploy on any Node.js host
 ==========================================
 
-This zip is the full Next.js football hub:
-- Premier League news, tables, fixtures & results
-- Kenyan football news (Harambee Stars, KPL, FKF)
-- Transfers feed
-- janta.ke partner advert
-- Silent autopilot (auto-updating news & pages)
+Live reference: https://soccercoke-alpha.vercel.app
 
 REQUIREMENTS
 - Node.js 20+ (24 recommended)
 - npm
+- Must run as a Node.js app (VPS, Railway, Render, cPanel "Setup Node.js App")
+- This will NOT work as static PHP/HTML in public_html alone
 
-QUICK START
-1. Unzip this folder
-2. npm install
-3. Copy .env.example to .env.local and fill in your keys
-4. npm run build
-5. npm start
+QUICK START (do this exactly)
+1. Unzip into a NEW empty folder (delete any old copy first)
+2. cd into the soccer-co-ke folder
+3. npm install
+4. Copy .env.example to .env.local
+5. Edit .env.local:
+     NEXT_PUBLIC_SITE_URL=https://YOUR-DOMAIN.com
+6. npm run build
+7. npm start
+8. Point domain / reverse proxy to that Node process (port 3000)
+9. Hard-refresh browser (Ctrl+F5)
 
-ENVIRONMENT VARIABLES (.env.local)
+Windows: double-click START.bat
+Linux/VPS: bash START.sh
+
+VERIFY BANNERS AFTER UNZIP
+These must exist or advert images will be blank:
+  public/banners/janta-freebet.png
+  public/banners/pilot-ke-aviator.png
+  public/banners/janta-top-pool.png
+  public/banners/janta-whatsapp-lottery.png
+  public/banners/janta-play-win.png
+
+Run:  node scripts/check-deploy.js
+
+IF YOU SEE HTTP 522 / "cached or RSS fallback"
+----------------------------------------------
+522 = Cloudflare or proxy could not reach Node in time.
+
+Fix:
+1. Confirm Node is running:  curl http://127.0.0.1:3000
+2. Confirm http://SERVER-IP:3000 works without Cloudflare
+3. Cloudflare temporary test: set DNS to DNS-only (grey cloud)
+4. Proxy must forward to the Node port (usually 3000), not only public_html
+5. Restart after deploy: pm2 restart all   OR   npm start
+6. Allow outbound HTTPS (news feeds + optional image proxy)
+
+This build returns news faster (stale-while-revalidate) to reduce 522s.
+News thumbnails load directly in the browser first (less server outbound).
+
+cPanel
+- Use Setup Node.js App / Application Manager
+- Application root = unzipped soccer-co-ke folder
+- Start with: npm start   (after npm install && npm run build)
+- Do NOT set document root only to public_html for this project
+
+ENVIRONMENT (.env.local)
 - NEXT_PUBLIC_SITE_URL=https://your-domain.com
-- NEXT_PUBLIC_GA_ID=G-CLP63EV54W
-- GNEWS_API_KEY=your-gnews-key (optional — RSS still works)
-- FOOTBALL_DATA_API_KEY=your-key (optional — fallback data used if missing)
-- CRON_SECRET=long-random-string (protects /api/cron/refresh)
+- GNEWS_API_KEY=   (optional)
+- CRON_SECRET=long-random-string
+- FOOTBALL_DATA_API_KEY=  (optional)
 
-AUTOPILOT (keeps the site self-updating)
-- Browser: silent autopilot refreshes stale server-rendered pages
-- News/transfers/Kenya APIs auto-refresh every 2 min and retain last-known-good stories
-- Cron: GET /api/cron/refresh twice daily (6 AM & 6 PM on Vercel Hobby)
-- VPS cron (recommended every 30 min): */30 * * * * curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/cron/refresh
-- Status: GET /api/pulse
-- External cron (VPS): curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-domain.com/api/cron/refresh
-
-VERCEL
-- npx vercel --prod
-
-OTHER HOSTS (Railway, Render, cPanel Node, VPS)
-- Build command: npm run build
-- Start command: npm start
-- Port: 3000 (or set PORT env)
-
-SHOPIFY THEME (optional, not in this zip)
-- Use soccer-co-ke-theme.zip separately
-- Upload in Shopify → Themes → Upload zip
-
-NOT INCLUDED (create after unzip)
-- node_modules  → run npm install
-- .env.local    → copy from .env.example
-- .next         → created by npm run build
-
-Live reference: https://soccercoke-alpha.vercel.app
+Shopify
+- Set hub URL to your live Node/Vercel URL
+- Or use https://soccercoke-alpha.vercel.app until your host is stable

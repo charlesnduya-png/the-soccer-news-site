@@ -28,15 +28,6 @@ export default async function KenyaFootballPage() {
           initialArticles={articles}
           loadingLabel="Loading Kenyan football news…"
         />
-        <p className="mt-8 text-center text-xs text-white/30">
-          JSON feed available at{" "}
-          <a
-            href="/api/news?topic=kenyan-football&limit=24"
-            className="text-[#00ff87] hover:underline"
-          >
-            /api/news?topic=kenyan-football
-          </a>
-        </p>
       </div>
     </>
   );

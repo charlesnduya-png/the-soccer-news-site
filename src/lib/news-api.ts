@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import Parser from "rss-parser";
 import { GoogleDecoder } from "google-news-url-decoder";
 import {
@@ -5,6 +6,7 @@ import {
   getLeagueConfig,
   isLeagueSlug,
   LEAGUE_NEWS_CONFIG,
+  LEAGUE_SLUGS,
   leagueRssFeeds,
   leagueSourceLabel,
   matchesEuropeanLeagues,
@@ -20,7 +22,6 @@ import {
   videoDescription,
   videoPosterUrl,
 } from "./news-video";
-import { articleIdFromLink } from "./utils";
 
 
 export type { NewsTopic } from "./league-news-config";
@@ -46,17 +47,34 @@ const parser = new Parser({
   },
 });
 
-const FETCH_TIMEOUT_MS = 6000;
+const FETCH_TIMEOUT_MS = 3000;
 const DEFAULT_LIMIT = 24;
-const CACHE_TTL_MS = 2 * 60 * 1000;
-const RETRY_CACHE_TTL_MS = 30 * 1000;
+/** Fresher feed — client polls every 2 min; keep server cache slightly longer. */
+const CACHE_TTL_MS = 3 * 60 * 1000;
+const RETRY_CACHE_TTL_MS = 45 * 1000;
+/** Cap cold news refresh so page TTFB stays short (stale-while-revalidate covers the rest). */
+const NEWS_REFRESH_BUDGET_MS = 5_000;
+/** Image scrapes run in the background after first publish. */
+const IMAGE_ENRICH_BUDGET_MS = 8_000;
+/** Big-five + next tier only on the hot path; cron still warms these often enough. */
+const EUROPE_HOT_FEED_COUNT = 6;
 const NEWS_POOL_SIZE = 50;
 const ARTICLE_CONTENT_MAX_CHARS = 20_000;
+/** Free GNews plans rate-limit quickly — pause after 429 and space out calls. */
+const GNEWS_COOLDOWN_MS = 60 * 60 * 1000;
+/** Per-topic spacing so warm of europe/transfers/kenya can each get a turn. */
+const GNEWS_MIN_INTERVAL_MS = 12 * 60 * 1000;
+/** Global gap between any two GNews HTTP calls (protects free tier). */
+const GNEWS_GLOBAL_GAP_MS = 75 * 1000;
 
 type NewsCacheEntry = NewsSnapshot & { expiresAt: number };
 
 const newsCache = new Map<NewsTopic, NewsCacheEntry>();
 const newsRefreshes = new Map<NewsTopic, Promise<NewsCacheEntry>>();
+const articleByIdCache = new Map<
+  string,
+  { article: NewsArticle; expiresAt: number }
+>();
 const articleDetailsCache = new Map<
   string,
   { content?: string; videoUrl?: string; image?: string; expiresAt: number }
@@ -64,6 +82,13 @@ const articleDetailsCache = new Map<
 const decodedGoogleNewsCache = new Map<string, { url: string; expiresAt: number }>();
 
 let googleNewsDecoder: GoogleDecoder | null = null;
+let gnewsCooldownUntil = 0;
+let gnewsGlobalNextAt = 0;
+const gnewsNextAllowedByTopic = new Map<NewsTopic, number>();
+const gnewsTopicCache = new Map<
+  NewsTopic,
+  { articles: NewsArticle[]; expiresAt: number }
+>();
 
 function getGoogleNewsDecoder(): GoogleDecoder {
   if (!googleNewsDecoder) googleNewsDecoder = new GoogleDecoder();
@@ -101,8 +126,12 @@ const YOUTUBE_VIDEO_FEEDS = [
 const KENYAN_RSS_FEEDS = [
   { url: "https://www.standardmedia.co.ke/rss/sports.php", source: "Standard Sports" },
   {
-    url: "https://news.google.com/rss/search?q=%22Kenya%20football%22%20OR%20%22Harambee%20Stars%22%20OR%20%22Gor%20Mahia%22%20OR%20%22AFC%20Leopards%22&hl=en-KE&gl=KE&ceid=KE%3Aen",
+    url: "https://news.google.com/rss/search?q=%22Gor%20Mahia%22%20OR%20%22AFC%20Leopards%22%20OR%20%22Harambee%20Stars%22%20OR%20%22Kenya%20Premier%20League%22%20OR%20KPL%20when%3A14d&hl=en-KE&gl=KE&ceid=KE%3Aen",
     source: "Google News Kenya",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=%22Kenya%20football%22%20OR%20FKF%20OR%20%22SportPesa%20Premier%20League%22%20OR%20%22Kenya%20Police%20FC%22%20OR%20Tusker%20OR%20Sofapaka%20when%3A14d&hl=en-KE&gl=KE&ceid=KE%3Aen",
+    source: "Google News KPL",
   },
 ] as const;
 
@@ -165,7 +194,6 @@ const PL_KEYWORDS = [
 ];
 
 const KENYAN_FOOTBALL_KEYWORDS = [
-  "kenyans",
   "kenya football",
   "kenyan football",
   "harambee stars",
@@ -173,30 +201,57 @@ const KENYAN_FOOTBALL_KEYWORDS = [
   "junior starlets",
   "fkf",
   "kenya premier league",
+  "kenyan premier league",
   "kpl",
   "gor mahia",
   "afc leopards",
   "tusker fc",
   "tusker ",
   "bandari fc",
+  "bandari ",
   "kcb fc",
   "mathare united",
   "kenya police fc",
+  "kenya police",
   "sofapaka",
+  "shabana",
+  "ulinzi stars",
+  "kakamega homeboyz",
+  "kariobangi sharks",
+  "mara sugar",
+  "murang'a seal",
+  "muranga seal",
+  "nairobi united",
+  "posta rangers",
+  "bidco united",
+  "aps bomet",
   "victor wanyama",
   "michael olunga",
+  "collins sichenje",
   "kenya national team",
   "kenya women football",
   "kenya vs",
-  "kenya cup football",
   "nyayo national stadium",
   "kasarani",
   "moi international sports centre",
   "fkf premier league",
   "sportpesa premier league",
-  "kenya federation",
-  "kenya qualifiers",
-  "kenya world cup",
+  "cecafa",
+  "kagame cup",
+];
+
+const KENYAN_NON_FOOTBALL = [
+  "polo",
+  "rugby",
+  "cricket",
+  "athletics",
+  "volleyball",
+  "basketball",
+  "hockey",
+  "netball",
+  "boxing",
+  "swimming",
+  "feassa",
 ];
 
 const TRANSFER_KEYWORDS = [
@@ -228,12 +283,54 @@ const TRANSFER_KEYWORDS = [
   "medical",
 ];
 
+
+/** Canonicalize article URLs so IDs stay stable across tracking-param noise. */
+function canonicalArticleLink(link: string): string {
+  try {
+    const url = new URL(link.trim());
+    url.hash = "";
+    for (const key of [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_term",
+      "utm_content",
+      "fbclid",
+      "gclid",
+    ]) {
+      url.searchParams.delete(key);
+    }
+    const search = url.searchParams.toString();
+    return `${url.origin}${url.pathname.replace(/\/$/, "")}${search ? `?${search}` : ""}`;
+  } catch {
+    return link.trim();
+  }
+}
+
+function isLikelyArticleUrl(link: string): boolean {
+  return (
+    /\/articles?\//i.test(link) ||
+    /news\.google\.com\/(?:rss\/)?articles\//i.test(link) ||
+    /\/\d{4}\/\d{2}\//.test(link) ||
+    /\/(story|news|post|football)\//i.test(link)
+  );
+}
+
+/** Stable SHA-256 id from the article link (title only for shared homepage URLs). */
+function articleIdFromLink(link: string, title = ""): string {
+  const canonical = canonicalArticleLink(link);
+  const seed = isLikelyArticleUrl(canonical)
+    ? canonical
+    : `${canonical}|${title.trim().slice(0, 80).toLowerCase()}`;
+  return createHash("sha256").update(seed).digest("base64url").slice(0, 20);
+}
+
 function makeArticle(
   partial: Omit<NewsArticle, "id"> & { id?: string }
 ): NewsArticle {
   return {
     ...partial,
-    id: partial.id ?? articleIdFromLink(partial.link),
+    id: partial.id ?? articleIdFromLink(partial.link, partial.title),
   };
 }
 
@@ -321,6 +418,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
   const seenTitles = new Set<string>();
   const seenLinks = new Set<string>();
+  const seenIds = new Set<string>();
 
   return articles.filter((article) => {
     const titleKey = article.title
@@ -333,18 +431,20 @@ function dedupeArticles(articles: NewsArticle[]): NewsArticle[] {
     try {
       const url = new URL(article.link);
       url.hash = "";
-      url.search = "";
-      linkKey = url.toString().replace(/\/$/, "");
+      // Keep article path identity; strip only tracking noise later if needed.
+      linkKey = `${url.origin}${url.pathname}`.replace(/\/$/, "");
     } catch {
       // Keep title-based deduplication for malformed or relative links.
     }
 
     if (
+      (article.id && seenIds.has(article.id)) ||
       (titleKey && seenTitles.has(titleKey)) ||
       (linkKey && seenLinks.has(linkKey))
     ) {
       return false;
     }
+    if (article.id) seenIds.add(article.id);
     if (titleKey) seenTitles.add(titleKey);
     if (linkKey) seenLinks.add(linkKey);
     return true;
@@ -357,11 +457,26 @@ function asMediaList(value: unknown): Array<{ $?: Record<string, string> }> {
   return [value as { $?: Record<string, string> }];
 }
 
-function findJsonLdImage(value: unknown): string | undefined {
+
+function absoluteImageUrl(candidate: string, baseUrl?: string): string | undefined {
+  const value = decodeHtmlEntities(candidate.trim());
+  if (!value) return undefined;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  if (value.startsWith("//")) return `https:${value}`;
+  if (!baseUrl) return undefined;
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+
+function findJsonLdImage(value: unknown, baseUrl?: string): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   if (Array.isArray(value)) {
     for (const item of value) {
-      const image = findJsonLdImage(item);
+      const image = findJsonLdImage(item, baseUrl);
       if (image) return image;
     }
     return undefined;
@@ -369,29 +484,41 @@ function findJsonLdImage(value: unknown): string | undefined {
 
   const object = value as Record<string, unknown>;
   const image = object.image;
-  if (typeof image === "string" && image.startsWith("http")) return image;
+  if (typeof image === "string") {
+    const absolute = absoluteImageUrl(image, baseUrl);
+    if (absolute) return absolute;
+  }
   if (Array.isArray(image)) {
     for (const item of image) {
-      if (typeof item === "string" && item.startsWith("http")) return item;
+      if (typeof item === "string") {
+        const absolute = absoluteImageUrl(item, baseUrl);
+        if (absolute) return absolute;
+      }
       if (item && typeof item === "object") {
         const url = (item as { url?: string }).url;
-        if (url?.startsWith("http")) return url;
+        if (url) {
+          const absolute = absoluteImageUrl(url, baseUrl);
+          if (absolute) return absolute;
+        }
       }
     }
   }
   if (image && typeof image === "object") {
     const url = (image as { url?: string }).url;
-    if (url?.startsWith("http")) return url;
+    if (url) {
+      const absolute = absoluteImageUrl(url, baseUrl);
+      if (absolute) return absolute;
+    }
   }
 
   for (const nested of Object.values(object)) {
-    const found = findJsonLdImage(nested);
+    const found = findJsonLdImage(nested, baseUrl);
     if (found) return found;
   }
   return undefined;
 }
 
-function extractOgImageFromHtml(html: string): string | undefined {
+function extractOgImageFromHtml(html: string, baseUrl?: string): string | undefined {
   const patterns = [
     /property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["']/i,
     /content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["']/i,
@@ -399,12 +526,14 @@ function extractOgImageFromHtml(html: string): string | undefined {
     /name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["']/i,
     /content=["']([^"']+)["'][^>]*name=["']twitter:image(?::src)?["']/i,
     /name=["']twitter:image(?::src)?["'][\s\S]*?content=["']([^"']+)["']/i,
+    /rel=["']image_src["'][^>]*href=["']([^"']+)["']/i,
+    /href=["']([^"']+)["'][^>]*rel=["']image_src["']/i,
   ];
 
   for (const pattern of patterns) {
     const match = html.match(pattern);
-    const candidate = match?.[1] ? decodeHtmlEntities(match[1].trim()) : "";
-    if (candidate.startsWith("http")) return candidate;
+    const absolute = match?.[1] ? absoluteImageUrl(match[1], baseUrl) : undefined;
+    if (absolute && !isGenericNewsImage(absolute)) return absolute;
   }
 
   const scripts = html.matchAll(
@@ -412,24 +541,52 @@ function extractOgImageFromHtml(html: string): string | undefined {
   );
   for (const match of scripts) {
     try {
-      const image = findJsonLdImage(JSON.parse(match[1]));
-      if (image) return image;
+      const image = findJsonLdImage(JSON.parse(match[1]), baseUrl);
+      if (image && !isGenericNewsImage(image)) return image;
     } catch {
       // Ignore malformed JSON-LD blocks.
+    }
+  }
+
+  // Last resort: first plausible <img> in the article body (skip icons/sprites).
+  const articleHtml = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? html;
+  for (const match of articleHtml.matchAll(/<img\b[^>]+>/gi)) {
+    const tag = match[0];
+    const src =
+      tag.match(/\bsrc=["']([^"']+)["']/i)?.[1] ??
+      tag.match(/\bdata-src=["']([^"']+)["']/i)?.[1] ??
+      tag.match(/\bdata-lazy-src=["']([^"']+)["']/i)?.[1];
+    if (!src) continue;
+    if (/sprite|logo|icon|avatar|pixel|1x1|spacer|badge|emoji/i.test(src)) continue;
+    const width = Number(tag.match(/\bwidth=["']?(\d+)/i)?.[1] ?? 0);
+    const height = Number(tag.match(/\bheight=["']?(\d+)/i)?.[1] ?? 0);
+    if ((width > 0 && width < 120) || (height > 0 && height < 80)) continue;
+    const absolute = absoluteImageUrl(src, baseUrl);
+    if (absolute && !isGenericNewsImage(absolute) && !isLikelyVideoUrl(absolute)) {
+      return absolute;
     }
   }
 
   return undefined;
 }
 
-function extractImage(item: Record<string, unknown>): string | undefined {
+function extractImage(item: Record<string, unknown>, baseUrl?: string): string | undefined {
+  const base =
+    baseUrl ??
+    (typeof item.link === "string"
+      ? item.link
+      : typeof item.guid === "string"
+        ? item.guid
+        : undefined);
+
   for (const media of asMediaList(item.mediaContent)) {
     const url = media.$?.url;
     const type = media.$?.type;
     const medium = media.$?.medium;
-    if (!url?.startsWith("http")) continue;
-    if (medium === "video" || isLikelyVideoUrl(url, type)) continue;
-    return url;
+    const absolute = url ? absoluteImageUrl(url, base) : undefined;
+    if (!absolute) continue;
+    if (medium === "video" || isLikelyVideoUrl(absolute, type)) continue;
+    return absolute;
   }
 
   const mediaThumbnail = item.mediaThumbnail as
@@ -437,35 +594,39 @@ function extractImage(item: Record<string, unknown>): string | undefined {
     | Array<{ $?: { url?: string } }>
     | undefined;
   if (Array.isArray(mediaThumbnail)) {
-    const thumb = mediaThumbnail.find((t) => t.$?.url?.startsWith("http"));
-    if (thumb?.$?.url) return thumb.$.url;
+    for (const thumb of mediaThumbnail) {
+      const absolute = thumb.$?.url ? absoluteImageUrl(thumb.$.url, base) : undefined;
+      if (absolute) return absolute;
+    }
   } else if (mediaThumbnail?.$?.url) {
-    return mediaThumbnail.$.url;
+    const absolute = absoluteImageUrl(mediaThumbnail.$.url, base);
+    if (absolute) return absolute;
   }
 
   const group = item.mediaGroup as Record<string, unknown> | undefined;
   if (group) {
     for (const thumb of asMediaList(group["media:thumbnail"] ?? group.mediaThumbnail)) {
-      if (thumb.$?.url?.startsWith("http")) return thumb.$.url;
+      const absolute = thumb.$?.url ? absoluteImageUrl(thumb.$.url, base) : undefined;
+      if (absolute) return absolute;
     }
   }
 
   const enclosure = item.enclosure as { url?: string; type?: string } | undefined;
-  if (
-    enclosure?.url?.startsWith("http") &&
-    !isLikelyVideoUrl(enclosure.url, enclosure.type)
-  ) {
-    return enclosure.url;
+  if (enclosure?.url) {
+    const absolute = absoluteImageUrl(enclosure.url, base);
+    if (absolute && !isLikelyVideoUrl(absolute, enclosure.type)) {
+      return absolute;
+    }
   }
 
   const content = String(item.content ?? item["content:encoded"] ?? item.summary ?? "");
   const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
-  if (imgMatch?.[1]?.startsWith("http")) return imgMatch[1];
+  if (imgMatch?.[1]) {
+    const absolute = absoluteImageUrl(imgMatch[1], base);
+    if (absolute) return absolute;
+  }
 
-  const ogImage = extractOgImageFromHtml(content);
-  if (ogImage) return ogImage;
-
-  return undefined;
+  return extractOgImageFromHtml(content, base);
 }
 
 function extractVideo(item: Record<string, unknown>): string | undefined {
@@ -648,6 +809,12 @@ async function fetchPublisherDetails(
   if (!url.startsWith("http")) return {};
 
   const publisherUrl = resolvedUrl ?? (await resolveArticleLink(url));
+
+  // Never scrape Google News interstitial pages — their og:image/body are shared/wrong.
+  if (publisherUrl.includes("news.google.com")) {
+    return {};
+  }
+
   const cacheKey =
     publisherUrl !== url ? `${url}::${publisherUrl}` : publisherUrl;
   const cached = articleDetailsCache.get(cacheKey);
@@ -660,7 +827,7 @@ async function fetchPublisherDetails(
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  const timer = setTimeout(() => controller.abort(), 4000);
 
   try {
     const res = await fetch(publisherUrl, {
@@ -668,18 +835,24 @@ async function fetchPublisherDetails(
       signal: controller.signal,
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; soccer.co.ke/1.0; +https://soccer.co.ke)",
-        Accept: "text/html,application/xhtml+xml",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-GB,en;q=0.9",
       },
       redirect: "follow",
     });
 
     if (!res.ok) return {};
+
+    const finalUrl = res.url || publisherUrl;
+    if (finalUrl.includes("news.google.com")) return {};
+
     const html = (await res.text()).slice(0, 750_000);
+    const image = extractOgImageFromHtml(html, finalUrl);
     const details = {
       content: extractPublisherContent(html),
       videoUrl: extractVideoUrlFromHtml(html),
-      image: extractOgImageFromHtml(html),
+      image: isUsableNewsImage(image) ? image : undefined,
     };
     articleDetailsCache.set(cacheKey, {
       ...details,
@@ -756,6 +929,12 @@ function isExcludedSport(title: string, description: string): boolean {
     "cycling",
     "motogp",
     "mercedes",
+    "polo",
+    "volleyball",
+    "basketball",
+    "netball",
+    "athletics",
+    "feassa",
   ];
   return exclude.some((kw) => text.includes(kw));
 }
@@ -769,14 +948,9 @@ export function isPremierLeagueArticle(title: string, description: string): bool
 export function isKenyanFootballArticle(title: string, description: string): boolean {
   const text = `${title} ${description}`.toLowerCase();
   if (isExcludedSport(title, description)) return false;
-  if (
-    text.includes("rugby") &&
-    !text.includes("football") &&
-    !text.includes("soccer")
-  ) {
-    return false;
-  }
+  if (KENYAN_NON_FOOTBALL.some((kw) => text.includes(kw))) return false;
 
+  // Strong club / national-team signals first.
   if (KENYAN_FOOTBALL_KEYWORDS.some((kw) => text.includes(kw))) return true;
 
   const hasKenya =
@@ -786,7 +960,11 @@ export function isKenyanFootballArticle(title: string, description: string): boo
     text.includes("soccer") ||
     text.includes("fifa") ||
     text.includes("caf") ||
-    text.includes("world cup");
+    text.includes("premier league") ||
+    text.includes("midfielder") ||
+    text.includes("striker") ||
+    text.includes("goalkeeper") ||
+    text.includes("transfer");
 
   return hasKenya && hasFootball;
 }
@@ -833,7 +1011,14 @@ function feedsForTopic(topic: NewsTopic) {
     return [{ url: league.googleNewsRss, source: leagueSourceLabel(topic) }];
   }
   if (topic === "european-leagues") {
-    return leagueRssFeeds().map(({ url, source }) => ({ url, source }));
+    // Publisher RSS first — these include real thumbnails. Google News RSS
+    // rarely ships images and decoding those links is rate-limited.
+    return [
+      ...PL_RSS_FEEDS,
+      ...leagueRssFeeds()
+        .slice(0, EUROPE_HOT_FEED_COUNT)
+        .map(({ url, source }) => ({ url, source })),
+    ];
   }
   return [
     ...KENYAN_RSS_FEEDS,
@@ -892,6 +1077,26 @@ async function fetchFromGNews(limit: number, topic: NewsTopic): Promise<NewsArti
   const apiKey = process.env.GNEWS_API_KEY;
   if (!apiKey) return [];
 
+  const now = Date.now();
+  const cached = gnewsTopicCache.get(topic);
+  if (cached && cached.expiresAt > now) {
+    return cached.articles.slice(0, limit);
+  }
+
+  // After a 429, skip GNews entirely for a while — RSS still powers the site.
+  const topicAllowedAt = gnewsNextAllowedByTopic.get(topic) ?? 0;
+  if (
+    now < gnewsCooldownUntil ||
+    now < gnewsGlobalNextAt ||
+    now < topicAllowedAt
+  ) {
+    return cached?.articles.slice(0, limit) ?? [];
+  }
+
+  // Reserve slots before any await so parallel topic refreshes cannot stampede.
+  gnewsGlobalNextAt = now + GNEWS_GLOBAL_GAP_MS;
+  gnewsNextAllowedByTopic.set(topic, now + GNEWS_MIN_INTERVAL_MS);
+
   const params = new URLSearchParams({
     q: gnewsQueryForTopic(topic),
     lang: "en",
@@ -905,14 +1110,25 @@ async function fetchFromGNews(limit: number, topic: NewsTopic): Promise<NewsArti
 
   try {
     const res = await fetch(`https://gnews.io/api/v4/search?${params}`, {
-      // GNews free plans are quota-limited and delayed; use it as enrichment
-      // while the RSS feeds provide the two-minute breaking-news refresh.
       next: { revalidate: 1800 },
       signal: controller.signal,
     });
+
+    if (res.status === 429) {
+      gnewsCooldownUntil = Date.now() + GNEWS_COOLDOWN_MS;
+      gnewsGlobalNextAt = gnewsCooldownUntil;
+      gnewsNextAllowedByTopic.set(topic, gnewsCooldownUntil);
+      console.warn(
+        "GNews rate limited (429). Pausing GNews for 1 hour; RSS feeds continue."
+      );
+      return cached?.articles.slice(0, limit) ?? [];
+    }
+
     if (!res.ok) {
-      console.error(`GNews API error: ${res.status}`);
-      return [];
+      if (res.status !== 403) {
+        console.warn(`GNews API skipped: HTTP ${res.status}`);
+      }
+      return cached?.articles.slice(0, limit) ?? [];
     }
 
     const data = (await res.json()) as {
@@ -926,10 +1142,8 @@ async function fetchFromGNews(limit: number, topic: NewsTopic): Promise<NewsArti
       }>;
     };
 
-    return (data.articles ?? [])
-      .filter((item) =>
-        matchesTopic(item.title, item.description ?? "", topic)
-      )
+    const articles = (data.articles ?? [])
+      .filter((item) => matchesTopic(item.title, item.description ?? "", topic))
       .map((item) =>
         makeArticle({
           title: item.title,
@@ -940,9 +1154,16 @@ async function fetchFromGNews(limit: number, topic: NewsTopic): Promise<NewsArti
           image: item.image,
         })
       );
+
+    gnewsTopicCache.set(topic, {
+      articles,
+      expiresAt: Date.now() + GNEWS_MIN_INTERVAL_MS,
+    });
+
+    return articles.slice(0, limit);
   } catch (error) {
-    console.error("GNews fetch failed:", error);
-    return [];
+    console.warn("GNews fetch failed; continuing with RSS only.", error);
+    return cached?.articles.slice(0, limit) ?? [];
   } finally {
     clearTimeout(timer);
   }
@@ -1051,7 +1272,7 @@ async function fetchYouTubeVideos(topic: NewsTopic): Promise<NewsArticle[]> {
         const raw = item as unknown as Record<string, unknown>;
         const image =
           extractImage(raw) ??
-          (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : undefined);
+          (videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : undefined);
 
         return makeArticle({
           title,
@@ -1084,14 +1305,40 @@ async function fetchYouTubeVideos(topic: NewsTopic): Promise<NewsArticle[]> {
 
 async function fetchFromRss(topic: NewsTopic): Promise<NewsArticle[]> {
   const feeds = feedsForTopic(topic);
-  const settled = await Promise.allSettled(
-    feeds.map((feed) => fetchFromRssFeed(feed, topic))
-  );
+
+  // RSS + YouTube in parallel for faster first paint.
+  const [settled, youtube] = await Promise.all([
+    Promise.allSettled(feeds.map((feed) => fetchFromRssFeed(feed, topic))),
+    fetchYouTubeVideos(topic),
+  ]);
   const rss = settled.flatMap((result) =>
     result.status === "fulfilled" ? result.value : []
   );
-  const youtube = await fetchYouTubeVideos(topic);
-  return [...youtube, ...rss];
+  // Text news first — YouTube clips stay available but never lead the home feed.
+  return [...rss, ...youtube];
+}
+
+function preferArticlesWithImages(articles: NewsArticle[]): NewsArticle[] {
+  return [...articles].sort((a, b) => {
+    const score = (article: NewsArticle) => {
+      const isVideo = Boolean(article.videoUrl);
+      // Homepage top stories should be news, not video clips.
+      if (isVideo) return isUsableNewsImage(article.image) ? -1 : -2;
+      return (
+        (isUsableNewsImage(article.image) ? 6 : 0) +
+        (article.source === "Standard Sports" ||
+        article.source.includes("BBC") ||
+        article.source.includes("Guardian") ||
+        article.source.includes("Sky Sports PL") ||
+        article.source.startsWith("Google News")
+          ? 1
+          : 0)
+      );
+    };
+    const scoreDifference = score(b) - score(a);
+    if (scoreDifference) return scoreDifference;
+    return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+  });
 }
 
 export function hasGNewsApi(): boolean {
@@ -1185,6 +1432,71 @@ function newestArticleDate(articles: NewsArticle[]): string | null {
   return newest > 0 ? new Date(newest).toISOString() : null;
 }
 
+function carryForwardImages(
+  articles: NewsArticle[],
+  previous?: NewsArticle[]
+): NewsArticle[] {
+  if (!previous?.length) return articles;
+  const byId = new Map(
+    previous
+      .filter((article) => isUsableNewsImage(article.image))
+      .map((article) => [article.id, article.image as string])
+  );
+  const byLink = new Map(
+    previous
+      .filter((article) => isUsableNewsImage(article.image))
+      .map((article) => [article.link, article.image as string])
+  );
+
+  return articles.map((article) => {
+    if (isUsableNewsImage(article.image)) return article;
+    const image = byId.get(article.id) ?? byLink.get(article.link);
+    return image ? { ...article, image } : article;
+  });
+}
+
+function scheduleBackgroundImageEnrich(
+  topic: NewsTopic,
+  published: NewsCacheEntry,
+  maxLookups: number
+) {
+  void (async () => {
+    try {
+      let enriched = await enrichArticleImages(published.articles, maxLookups);
+      if (
+        topic === "kenyan-football" ||
+        topic === "european-leagues" ||
+        topic === "premier-league" ||
+        topic === "transfers"
+      ) {
+        enriched = preferArticlesWithImages(enriched);
+      }
+
+      const current = newsCache.get(topic);
+      if (!current || current.fetchedAt !== published.fetchedAt) return;
+
+      const nextArticles = enriched.slice(0, NEWS_POOL_SIZE);
+      const nextImaged = nextArticles.filter((article) =>
+        isUsableNewsImage(article.image)
+      ).length;
+      const publishedImaged = published.articles.filter((article) =>
+        isUsableNewsImage(article.image)
+      ).length;
+      if (nextImaged <= publishedImaged) return;
+
+      const updated: NewsCacheEntry = {
+        ...current,
+        articles: nextArticles,
+        newestArticleAt: newestArticleDate(nextArticles),
+      };
+      newsCache.set(topic, updated);
+      indexArticlesById(updated.articles);
+    } catch {
+      // Background enrich is best-effort.
+    }
+  })();
+}
+
 async function enrichArticleImages(
   articles: NewsArticle[],
   maxLookups = 12
@@ -1199,50 +1511,134 @@ async function enrichArticleImages(
 
   if (missing.length === 0) return articles;
 
-  const enriched = articles.map((article) =>
-    isUsableNewsImage(article.image)
-      ? article
-      : { ...article, image: undefined }
-  );
+  // Keep whatever image we already have — only fill gaps.
+  const enriched = articles.map((article) => ({ ...article }));
 
-  const googleLinks = missing
-    .map(({ article }) => article.link)
-    .filter((link) => link.includes("news.google.com"));
-  const decodedByGoogleLink = new Map<string, string>();
+  const run = async () => {
+    const googleLinks = [
+      ...new Set(
+        missing
+          .map(({ article }) => article.link)
+          .filter((link) => link.includes("news.google.com"))
+      ),
+    ];
+    const decodedByGoogleLink = new Map<string, string>();
 
-  if (googleLinks.length > 0) {
-    try {
-      const results = await getGoogleNewsDecoder().decodeBatch(googleLinks);
-      googleLinks.forEach((link, index) => {
-        const decoded = results[index];
-        if (decoded?.status && decoded.decoded_url?.startsWith("http")) {
-          decodedByGoogleLink.set(link, decoded.decoded_url);
-          decodedGoogleNewsCache.set(link, {
-            url: decoded.decoded_url,
-            expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-          });
+    // Batch decode — one batchexecute POST instead of N individual RPCs (fewer 429s).
+    if (googleLinks.length > 0) {
+      try {
+        const batch = await getGoogleNewsDecoder().decodeBatch(googleLinks);
+        for (const row of batch) {
+          if (
+            row?.status &&
+            typeof row.source_url === "string" &&
+            typeof row.decoded_url === "string" &&
+            row.decoded_url.startsWith("http") &&
+            !row.decoded_url.includes("news.google.com")
+          ) {
+            decodedByGoogleLink.set(row.source_url, row.decoded_url);
+            decodedGoogleNewsCache.set(row.source_url, {
+              url: row.decoded_url,
+              expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+            });
+          }
         }
+      } catch (error) {
+        console.warn("Google News decodeBatch failed:", error);
+      }
+    }
+
+    // Fill any remaining Google links one-by-one (cached / softer path).
+    await Promise.allSettled(
+      googleLinks
+        .filter((link) => !decodedByGoogleLink.has(link))
+        .map(async (link) => {
+          const decoded = await decodeGoogleNewsLink(link);
+          if (decoded && !decoded.includes("news.google.com")) {
+            decodedByGoogleLink.set(link, decoded);
+          }
+        })
+    );
+
+    await Promise.allSettled(
+      missing.map(async ({ article, index }) => {
+        const resolved =
+          decodedByGoogleLink.get(article.link) ??
+          (await resolveArticleLink(article.link));
+
+        if (resolved.includes("news.google.com")) return;
+
+        const details = await fetchPublisherDetails(article.link, resolved);
+        if (!isUsableNewsImage(details.image)) return;
+        enriched[index] = { ...article, image: details.image };
+      })
+    );
+
+    return enriched;
+  };
+
+  return withSoftTimeout(run(), IMAGE_ENRICH_BUDGET_MS, enriched);
+}
+
+/**
+ * Resolve a usable thumbnail for one article link (used by the inbuilt
+ * news image loader when RSS/GNews did not provide an image).
+ */
+export async function resolveNewsArticleImage(
+  link: string,
+  existing?: string
+): Promise<string | undefined> {
+  if (isUsableNewsImage(existing)) return existing;
+  if (!link.startsWith("http")) return undefined;
+
+  const cachedDetails = articleDetailsCache.get(link);
+  if (cachedDetails && cachedDetails.expiresAt > Date.now()) {
+    if (isUsableNewsImage(cachedDetails.image)) return cachedDetails.image;
+  }
+
+  const resolved = await resolveArticleLink(link);
+  if (resolved.includes("news.google.com")) return undefined;
+
+  const details = await fetchPublisherDetails(link, resolved);
+  return isUsableNewsImage(details.image) ? details.image : undefined;
+}
+
+/** Persist a newly resolved image onto the in-memory article caches. */
+export function attachResolvedArticleImage(
+  articleId: string | undefined,
+  link: string,
+  image: string
+) {
+  if (!isUsableNewsImage(image)) return;
+
+  if (articleId) {
+    const hit = articleByIdCache.get(articleId);
+    if (hit) {
+      articleByIdCache.set(articleId, {
+        article: { ...hit.article, image },
+        expiresAt: Math.max(hit.expiresAt, Date.now() + 10 * 60 * 1000),
       });
-    } catch (error) {
-      console.error("Google News batch decode failed:", error);
     }
   }
 
-  await Promise.allSettled(
-    missing.map(async ({ article, index }) => {
-      const resolved =
-        decodedByGoogleLink.get(article.link) ??
-        (await resolveArticleLink(article.link));
-      const details = await fetchPublisherDetails(
-        article.link,
-        resolved !== article.link ? resolved : undefined
-      );
-      if (!isUsableNewsImage(details.image)) return;
-      enriched[index] = { ...article, image: details.image };
-    })
-  );
-
-  return enriched;
+  for (const [topic, entry] of newsCache) {
+    let changed = false;
+    const articles = entry.articles.map((article) => {
+      if (article.image) return article;
+      if (articleId && article.id === articleId) {
+        changed = true;
+        return { ...article, image };
+      }
+      if (article.link === link) {
+        changed = true;
+        return { ...article, image };
+      }
+      return article;
+    });
+    if (changed) {
+      newsCache.set(topic, { ...entry, articles });
+    }
+  }
 }
 
 async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
@@ -1294,7 +1690,8 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
           (a) =>
             isKenyanFootballArticle(a.title, a.description) &&
             (a.source === "Standard Sports" ||
-              a.source === "Google News Kenya" ||
+              a.source.startsWith("Google News") ||
+              a.source.startsWith("GNews") ||
               isLikelyKenyanPublisher(a.source))
         );
 
@@ -1319,21 +1716,19 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
         return { ...article, image: poster };
       });
 
-      merged = await enrichArticleImages(
-        merged,
-        topic === "kenyan-football" ? 24 : topic === "european-leagues" ? 18 : 12
-      );
+      // Reuse thumbnails from the previous healthy snapshot when a refresh
+      // temporarily fails to scrape og:image (common for Google News links).
+      merged = carryForwardImages(merged, previous?.articles);
 
-      if (topic === "kenyan-football") {
-        merged.sort((a, b) => {
-          const score = (article: NewsArticle) =>
-            (isUsableNewsImage(article.image) ? 2 : 0) +
-            (article.source === "Standard Sports" ? 1 : 0);
-          const scoreDifference = score(b) - score(a);
-          const dateDifference =
-            new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
-          return scoreDifference || dateDifference;
-        });
+      // Rank with whatever images we already have (RSS/GNews/YouTube/carry-forward).
+      // Publisher og:image scrapes run in the background after we publish.
+      if (
+        topic === "kenyan-football" ||
+        topic === "european-leagues" ||
+        topic === "premier-league" ||
+        topic === "transfers"
+      ) {
+        merged = preferArticlesWithImages(merged);
       }
 
       if (merged.length === 0) {
@@ -1369,7 +1764,29 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
           )
       );
 
-      return {
+      // If this refresh lost every thumbnail but the previous snapshot was healthy,
+      // keep the previous feed rather than blanking the homepage images.
+      const imagedCount = articles.filter((article) =>
+        isUsableNewsImage(article.image)
+      ).length;
+      const previousImaged =
+        previous?.articles.filter((article) =>
+          isUsableNewsImage(article.image)
+        ).length ?? 0;
+      if (
+        imagedCount === 0 &&
+        previous &&
+        !previous.isFallback &&
+        previousImaged >= 3
+      ) {
+        return {
+          ...previous,
+          expiresAt: Date.now() + RETRY_CACHE_TTL_MS,
+          degraded: true,
+        };
+      }
+
+      const entry: NewsCacheEntry = {
         articles,
         fetchedAt: new Date().toISOString(),
         newestArticleAt: newestArticleDate(articles),
@@ -1379,6 +1796,16 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
         degraded: false,
         expiresAt: Date.now() + CACHE_TTL_MS,
       };
+
+      newsCache.set(topic, entry);
+      indexArticlesById(entry.articles);
+
+      // Fill missing thumbnails after first paint — do not block TTFB.
+      const enrichLookups =
+        topic === "kenyan-football" || topic === "european-leagues" ? 12 : 8;
+      scheduleBackgroundImageEnrich(topic, entry, enrichLookups);
+
+      return entry;
     } catch {
       if (previous && previous.articles.length > 0) {
         return {
@@ -1406,6 +1833,7 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
   try {
     const entry = await refresh;
     newsCache.set(topic, entry);
+    indexArticlesById(entry.articles);
     return entry;
   } finally {
     newsRefreshes.delete(topic);
@@ -1418,10 +1846,8 @@ export async function getNewsSnapshot(
 ): Promise<NewsSnapshot> {
   const safeLimit = Math.min(Math.max(Math.trunc(limit) || DEFAULT_LIMIT, 1), 50);
   const cached = newsCache.get(topic);
-  const entry =
-    cached && cached.expiresAt > Date.now() ? cached : await refreshNews(topic);
 
-  return {
+  const toSnapshot = (entry: NewsCacheEntry): NewsSnapshot => ({
     articles: entry.articles.slice(0, safeLimit),
     fetchedAt: entry.fetchedAt,
     newestArticleAt: entry.newestArticleAt,
@@ -1429,39 +1855,166 @@ export async function getNewsSnapshot(
     failedSources: entry.failedSources,
     isFallback: entry.isFallback,
     degraded: entry.degraded,
-  };
+  });
+
+  // Fresh cache — return immediately.
+  if (cached && cached.expiresAt > Date.now()) {
+    return toSnapshot(cached);
+  }
+
+  // Stale-while-revalidate — avoid Cloudflare 522 by never blocking on a slow refresh.
+  // Keep the existing degraded/isFallback flags; do not mark healthy cache as degraded
+  // just because a background refresh is in flight (that caused a false warning banner).
+  if (cached && cached.articles.length > 0) {
+    void refreshNews(topic);
+    return toSnapshot(cached);
+  }
+
+  // Cold start — race refresh against a budget, then serve fallback.
+  try {
+    const entry = await Promise.race([
+      refreshNews(topic),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("news-refresh-timeout")), NEWS_REFRESH_BUDGET_MS);
+      }),
+    ]);
+    return toSnapshot(entry);
+  } catch {
+    const fallback = fallbackForTopic(topic).slice(0, safeLimit);
+    return {
+      articles: fallback,
+      fetchedAt: new Date().toISOString(),
+      newestArticleAt: newestArticleDate(fallback),
+      successfulSources: [],
+      failedSources: getActiveNewsSources(topic),
+      isFallback: true,
+      degraded: true,
+    };
+  }
+}
+
+function findCachedArticleById(id: string): NewsArticle | null {
+  const direct = articleByIdCache.get(id);
+  if (direct && direct.expiresAt > Date.now()) return direct.article;
+
+  for (const entry of newsCache.values()) {
+    const match = entry.articles.find((article) => article.id === id);
+    if (match) return match;
+  }
+  return null;
+}
+
+async function withSoftTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function indexArticlesById(articles: NewsArticle[]) {
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+  for (const article of articles) {
+    const existing = articleByIdCache.get(article.id);
+    // Never overwrite id → different story (hash collision / stale map).
+    if (
+      existing &&
+      existing.expiresAt > Date.now() &&
+      canonicalArticleLink(existing.article.link) !==
+        canonicalArticleLink(article.link)
+    ) {
+      continue;
+    }
+    articleByIdCache.set(article.id, { article, expiresAt });
+  }
 }
 
 export async function getNewsArticleById(id: string): Promise<NewsArticle | null> {
-  const topics: NewsTopic[] = [
-    "european-leagues",
-    "premier-league",
-    "kenyan-football",
-    "transfers",
-    "all",
-  ];
+  const safeId = decodeURIComponent(id).trim();
+  if (!safeId) return null;
 
-  let found: NewsArticle | null = null;
-  for (const topic of topics) {
-    const articles = await getNews(40, topic);
-    const match = articles.find((article) => article.id === id);
-    if (match) {
-      found = match;
-      break;
+  const cachedHit = findCachedArticleById(safeId);
+  let found = cachedHit;
+
+  if (!found) {
+    const topics: NewsTopic[] = [
+      "european-leagues",
+      "premier-league",
+      "kenyan-football",
+      "transfers",
+      "all",
+      ...LEAGUE_SLUGS,
+    ];
+
+    // Search full in-memory pools first (not just the truncated page slice).
+    for (const topic of topics) {
+      const entry = newsCache.get(topic);
+      if (!entry) continue;
+      const match = entry.articles.find((article) => article.id === safeId);
+      if (match) {
+        found = match;
+        break;
+      }
+    }
+
+    if (!found) {
+      for (const topic of topics) {
+        const snapshot = await getNewsSnapshot(NEWS_POOL_SIZE, topic);
+        indexArticlesById(snapshot.articles);
+        const match = snapshot.articles.find((article) => article.id === safeId);
+        if (match) {
+          found = match;
+          break;
+        }
+      }
     }
   }
 
   if (!found) return null;
 
-  const details =
-    found.content && found.videoUrl && found.image
-      ? {}
-      : await fetchPublisherDetails(found.link);
+  const isGoogleLink = found.link.includes("news.google.com");
+  const imageTrusted = isUsableNewsImage(found.image) && !isGoogleLink;
+  const needsEnrichment = !(found.content && imageTrusted);
 
-  return {
+  const details = needsEnrichment
+    ? await withSoftTimeout(
+        fetchPublisherDetails(found.link),
+        2500,
+        {} as { content?: string; videoUrl?: string; image?: string }
+      )
+    : {};
+
+  const image = isGoogleLink
+    ? isUsableNewsImage(details.image)
+      ? details.image
+      : isUsableNewsImage(found.image)
+        ? found.image
+        : undefined
+    : isUsableNewsImage(found.image)
+      ? found.image
+      : details.image;
+
+  const article: NewsArticle = {
     ...found,
     content: found.content ?? details.content,
     videoUrl: found.videoUrl ?? details.videoUrl,
-    image: found.image ?? details.image,
+    image,
   };
+
+  articleByIdCache.set(safeId, {
+    article,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+
+  return article;
 }
