@@ -14,7 +14,7 @@ export default async function TransfersPage() {
     <>
       <PageHero
         title="Premier League Transfers"
-        subtitle="Latest signings, loans and transfer rumours — updates automatically from Sky Sports, BBC, Guardian & ESPN."
+        subtitle="Signings, loans and transfer rumours only — auto-updated from BBC Transfers, Sky, Guardian, ESPN and Google News."
         badge="Transfers"
       />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

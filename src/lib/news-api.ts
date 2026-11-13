@@ -110,6 +110,19 @@ const PL_RSS_FEEDS = [
   { url: "https://www.espn.com/espn/rss/soccer/news", source: "ESPN Soccer" },
 ] as const;
 
+/** Transfer-first feeds (still filtered by isTransferArticle). */
+const TRANSFER_RSS_FEEDS = [
+  {
+    url: "https://feeds.bbci.co.uk/sport/football/transfers/rss.xml",
+    source: "BBC Transfers",
+  },
+  {
+    url: "https://news.google.com/rss/search?q=%22Premier%20League%22%20(transfer%20OR%20signing%20OR%20loan%20OR%20%22linked%20with%22)%20when%3A14d&hl=en-GB&gl=GB&ceid=GB%3Aen",
+    source: "Google News Transfers",
+  },
+  ...PL_RSS_FEEDS,
+] as const;
+
 /** YouTube Atom feeds — reliable video + thumbnail for home cards */
 const YOUTUBE_VIDEO_FEEDS = [
   {
@@ -254,33 +267,58 @@ const KENYAN_NON_FOOTBALL = [
   "feassa",
 ];
 
+/** Strong transfer signals only — vague words like "deal"/"move"/"confirmed" leaked match reports. */
 const TRANSFER_KEYWORDS = [
   "transfer",
+  "transfers",
+  "transfer rumour",
+  "transfer rumor",
+  "transfer news",
+  "transfer talk",
+  "transfer window",
+  "transfer fee",
+  "deadline day",
+  "new signing",
   "signing",
-  "signed",
-  "signs",
-  "loan",
-  "deal",
+  "signed for",
+  "signs for",
+  "signs with",
+  "on loan",
+  "loan deal",
+  "loaned",
   "joins",
   "joined",
-  "move",
-  "bid",
-  "offer",
-  "fee",
-  "rumour",
-  "rumor",
+  "set to join",
+  "set to sign",
+  "bid for",
+  "transfer bid",
+  "contract offer",
   "linked with",
   "interest in",
-  "close to",
-  "agree",
-  "agrees",
-  "confirmed",
-  "unveils",
-  "unveil",
-  "new signing",
-  "deadline day",
-  "transfer window",
+  "close to signing",
+  "close to joining",
+  "here we go",
+  "completes move",
+  "permanent deal",
   "medical",
+  "done deal",
+  "papers:",
+];
+
+const TRANSFER_NOISE = [
+  "as it happened",
+  "match report",
+  "player ratings",
+  "liveblog",
+  "live blog",
+  "dig in for draw",
+  "unbeaten start",
+  "propping up table",
+  "rescues late point",
+  "women's champions league",
+  "womens champions league",
+  "wcl:",
+  "champions league, as they",
 ];
 
 
@@ -976,17 +1014,44 @@ function isLikelyKenyanPublisher(source: string): boolean {
   );
 }
 
+function isTransferNoise(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase();
+  if (TRANSFER_NOISE.some((kw) => text.includes(kw))) return true;
+  // Scoreline in the title is almost always a match report, not a transfer.
+  if (/\b\d+\s*[-–]\s*\d+\b/.test(title)) return true;
+  return false;
+}
+
+function isManagerialAppointment(title: string, description: string): boolean {
+  const text = `${title} ${description}`.toLowerCase();
+  if (/(sack|sacked|fired|dismissed|chaos that took|treated badly)/i.test(text)) {
+    return false;
+  }
+  const role =
+    /(manager|head coach|boss|appointed|appoints|to become .+ boss|to become .+ manager|to become .+ coach)/i.test(
+      text
+    );
+  const move =
+    /(join|joins|joined|deal|agrees|agree|set to|close to|become|becomes|take over|take charge)/i.test(
+      text
+    );
+  return role && move;
+}
+
 export function isTransferArticle(title: string, description: string): boolean {
   const text = `${title} ${description}`.toLowerCase();
   if (isExcludedSport(title, description)) return false;
+  if (isTransferNoise(title, description)) return false;
+
   const hasTransfer = TRANSFER_KEYWORDS.some((kw) => text.includes(kw));
-  if (!hasTransfer) return false;
-  // Prefer PL clubs / league context; still allow pure transfer headlines
+  const managerial = isManagerialAppointment(title, description);
+  if (!hasTransfer && !managerial) return false;
+
+  // Keep the board Premier League / big-club focused.
   return (
     isPremierLeagueArticle(title, description) ||
     text.includes("premier league") ||
-    text.includes("football") ||
-    text.includes("soccer")
+    text.includes("transfer")
   );
 }
 
@@ -1005,7 +1070,8 @@ function matchesTopic(title: string, description: string, topic: NewsTopic): boo
 
 function feedsForTopic(topic: NewsTopic) {
   if (topic === "kenyan-football") return KENYAN_RSS_FEEDS;
-  if (topic === "premier-league" || topic === "transfers") return PL_RSS_FEEDS;
+  if (topic === "transfers") return [...TRANSFER_RSS_FEEDS];
+  if (topic === "premier-league") return PL_RSS_FEEDS;
   if (isLeagueSlug(topic)) {
     const league = getLeagueConfig(topic);
     return [{ url: league.googleNewsRss, source: leagueSourceLabel(topic) }];
@@ -1370,7 +1436,14 @@ export function getActiveNewsSources(topic: NewsTopic = "all"): string[] {
     return sources;
   }
   if (topic === "transfers") {
-    const sources = ["Sky Sports PL", "Guardian PL", "BBC Sport", "ESPN Soccer"];
+    const sources = [
+      "BBC Transfers",
+      "Google News Transfers",
+      "Sky Sports PL",
+      "Guardian PL",
+      "BBC Sport",
+      "ESPN Soccer",
+    ];
     if (process.env.GNEWS_API_KEY) sources.unshift("GNews.io");
     return sources;
   }

@@ -30,15 +30,33 @@ export function TransfersFeed({
     }
   }, [initialArticles]);
 
-  useLiveRefresh<{ articles: NewsArticle[]; fetchedAt?: string }>({
+  useLiveRefresh<{
+    articles: NewsArticle[];
+    fetchedAt?: string;
+    isFallback?: boolean;
+  }>({
     url: `/api/news?topic=transfers&limit=${limit}`,
     intervalMs: REFRESH_MS,
+    immediate: initialArticles.length === 0,
     onData: (data) => {
-      if (data.articles?.length) {
-        setArticles(data.articles);
-        setUpdatedAt(data.fetchedAt ?? new Date().toISOString());
-      }
       setLoading(false);
+      if (!data.articles?.length) return;
+
+      setArticles((current) => {
+        if (data.isFallback && current.length > 0) return current;
+
+        const previousById = new Map(
+          current
+            .filter((article) => article.image)
+            .map((article) => [article.id, article.image as string])
+        );
+        return data.articles.map((article) => {
+          if (article.image) return article;
+          const image = previousById.get(article.id);
+          return image ? { ...article, image } : article;
+        });
+      });
+      setUpdatedAt(data.fetchedAt ?? new Date().toISOString());
     },
   });
 
@@ -86,14 +104,17 @@ export function TransfersFeed({
               href={`/news/${article.id}`}
               className="group flex gap-4 px-4 py-4 transition hover:bg-white/5 sm:px-5"
             >
-              <NewsArticleImage
-                src={
-                  videoPosterUrl(article.videoUrl, article.image) ?? article.image
-                }
-                articleLink={article.link}
-                articleId={article.id}
-                className="hidden h-16 w-24 shrink-0 rounded-lg object-cover sm:block"
-              />
+              <div className="relative hidden h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-[#120c1c] sm:block">
+                <NewsArticleImage
+                  src={
+                    videoPosterUrl(article.videoUrl, article.image) ??
+                    article.image
+                  }
+                  articleLink={article.link}
+                  articleId={article.id}
+                  className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
                   <span className="rounded-full bg-[#00ff87]/15 px-2 py-0.5 font-semibold text-[#00ff87]">
@@ -104,7 +125,9 @@ export function TransfersFeed({
                       Video
                     </span>
                   ) : null}
-                  <span className="text-white/40">{formatNewsDate(article.pubDate)}</span>
+                  <span className="text-white/40">
+                    {formatNewsDate(article.pubDate)}
+                  </span>
                 </div>
                 <h3 className="font-bold text-white transition group-hover:text-[#00ff87] sm:text-lg">
                   {article.title}
