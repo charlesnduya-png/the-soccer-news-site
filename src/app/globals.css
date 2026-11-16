@@ -575,7 +575,7 @@ svg {
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, rgba(206, 17, 38, 0.08), transparent 55%);
-  opacity: 0;
+    opacity: 0;
   transition: opacity 0.2s ease;
 }
 
@@ -999,6 +999,71 @@ svg {
   main {
     padding-bottom: 4.5rem;
   }
+}
+
+.statistics-float {
+  position: fixed;
+  right: 0.95rem;
+  bottom: 7.6rem;
+  z-index: 45;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.5rem 0.4rem;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(7, 6, 15, 0.88);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.statistics-float:hover,
+.statistics-float:focus-visible {
+  transform: translateY(-3px) scale(1.04);
+  border-color: rgba(0, 255, 135, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 255, 135, 0.18);
+}
+
+.statistics-float__img {
+  display: block;
+  height: 2.65rem;
+  width: 2.65rem;
+  object-fit: contain;
+}
+
+.statistics-float__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+@media (min-width: 640px) {
+  .statistics-float {
+    right: 1.35rem;
+    bottom: 9.25rem;
+  }
+
+  .statistics-float__img {
+    height: 3rem;
+    width: 3rem;
+  }
+}
+
+html[data-theme="light"] .statistics-float {
+  border-color: rgba(55, 0, 60, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(55, 0, 60, 0.14);
+}
+
+html[data-theme="light"] .statistics-float__label {
+  color: rgba(55, 0, 60, 0.7);
 }
 
 .football-assistant__peek {

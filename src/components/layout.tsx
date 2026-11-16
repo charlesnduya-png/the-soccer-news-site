@@ -22,7 +22,7 @@ type NavItem =
 const navLinks: NavItem[] = [
   { href: "/fixtures", label: "Matches" },
   { href: "/standings", label: "Table" },
-  { href: "/scorers", label: "Statistics", icon: "/statistics-tv.png" },
+  { href: "/scorers", label: "Statistics" },
   { label: "Live Scores", liveScores: true, children: [] },
   { href: "/news", label: "News" },
   {
@@ -50,7 +50,7 @@ const mobileNavLinks: NavItem[] = [
   { href: "/news", label: "News" },
   { href: "/kenya-football", label: "Kenya" },
   { href: "/transfers", label: "Transfers" },
-  { href: "/scorers", label: "Stats", icon: "/statistics-tv.png" },
+  { href: "/scorers", label: "Stats" },
   { href: "/teams", label: "Clubs" },
 ];
 

@@ -14,9 +14,16 @@ const SiteAutopilot = dynamic(
   { ssr: false, loading: () => null }
 );
 
+const StatisticsFloat = dynamic(
+  () =>
+    import("@/components/statistics-float").then((mod) => mod.StatisticsFloat),
+  { ssr: false, loading: () => null }
+);
+
 export function DeferredWidgets() {
   return (
     <>
+      <StatisticsFloat />
       <FootballAssistant />
       <SiteAutopilot />
     </>
