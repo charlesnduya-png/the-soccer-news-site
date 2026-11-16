@@ -31,11 +31,18 @@ export function isCacheableImageUrl(url?: string | null): url is string {
 
 /** True when the RSS/GNews thumbnail is likely broken or blocked in browsers. */
 export function isFragileNewsImage(url?: string | null): boolean {
-  if (!url) return true;
-  const value = url;
-  if (isLocalImageUrl(value)) return false;
-  if (!/^https?:\/\//i.test(value)) return true;
-  const lower = value.toLowerCase();
+  if (typeof url !== "string" || !url) return true;
+  // Inline local checks — avoid type-predicate narrowing to `never`.
+  if (
+    url.startsWith("/api/admin/media/") ||
+    url.startsWith("/api/image?") ||
+    url.startsWith("/news-placeholder") ||
+    url.startsWith("/uploads/")
+  ) {
+    return false;
+  }
+  if (!/^https?:\/\//i.test(url)) return true;
+  const lower = url.toLowerCase();
   return (
     lower.includes("news.google.com") ||
     lower.includes("encrypted-tbn") ||
