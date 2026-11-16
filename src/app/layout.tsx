@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Bebas_Neue, Inter } from "next/font/google";
 import { Analytics } from "@/components/analytics";
+import { AnalyticsBeacon } from "@/components/analytics-beacon";
 import { DeferredWidgets } from "@/components/deferred-widgets";
 import { IframeBridge } from "@/components/iframe-bridge";
 import { SiteFooter, SiteHeader } from "@/components/layout";
 import { MobileZoomLock } from "@/components/mobile-zoom-lock";
+import { HideOnAdmin } from "@/components/site-chrome";
 import { ThemeProvider, themeBootScript } from "@/components/theme-provider";
 import { rootMetadata } from "@/lib/seo";
 import "./globals.css";
@@ -56,10 +59,17 @@ export default function RootLayout({
         <ThemeProvider>
           <MobileZoomLock />
           <IframeBridge />
-          <SiteHeader />
+          <HideOnAdmin>
+            <SiteHeader />
+          </HideOnAdmin>
           <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
-          <SiteFooter />
-          <DeferredWidgets />
+          <HideOnAdmin>
+            <SiteFooter />
+            <DeferredWidgets />
+          </HideOnAdmin>
+          <Suspense fallback={null}>
+            <AnalyticsBeacon />
+          </Suspense>
           <Analytics />
         </ThemeProvider>
       </body>

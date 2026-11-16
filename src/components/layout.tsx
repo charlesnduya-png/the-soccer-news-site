@@ -52,6 +52,7 @@ const footerLinks = [
   { href: "/fixtures", label: "Matches" },
   { href: "/standings", label: "Table" },
   { href: "/news", label: "News" },
+  { href: "/updates", label: "Updates" },
   { href: "/kenya-football", label: "Kenya News" },
   { href: "/kenya-football/teams", label: "Kenya Teams" },
   { href: "/kenya-football/fixtures", label: "Kenya Fixtures" },

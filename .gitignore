@@ -48,3 +48,5 @@ tmp-*.xml
 tmp-kenya-news.json
 
 .vercel
+
+data/admin-store.json

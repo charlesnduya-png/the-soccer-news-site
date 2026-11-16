@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/kenya-football/fixtures`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE_URL}/kenya-football/results`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE_URL}/transfers`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
+    { url: `${SITE_URL}/updates`, lastModified: now, changeFrequency: "daily", priority: 0.65 },
     { url: `${SITE_URL}/standings`, lastModified: now, changeFrequency: "hourly", priority: 0.88 },
     { url: `${SITE_URL}/fixtures`, lastModified: now, changeFrequency: "hourly", priority: 0.85 },
     { url: `${SITE_URL}/results`, lastModified: now, changeFrequency: "hourly", priority: 0.85 },

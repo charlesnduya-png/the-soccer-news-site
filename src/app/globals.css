@@ -2824,3 +2824,14 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: #00c968;
 }
 
+
+/* Admin portal */
+.admin-portal__glow {
+  background:
+    radial-gradient(ellipse 55% 40% at 10% 0%, rgba(0, 255, 135, 0.12), transparent 55%),
+    radial-gradient(ellipse 45% 35% at 90% 10%, rgba(55, 0, 60, 0.55), transparent 60%);
+}
+
+.admin-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
