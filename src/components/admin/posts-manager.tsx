@@ -21,15 +21,29 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
   const router = useRouter();
   const [posts, setPosts] = useState(initialPosts);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this post?")) return;
+    if (
+      !window.confirm(
+        "Delete this news post permanently? It will disappear from the site feeds."
+      )
+    ) {
+      return;
+    }
     setBusyId(id);
+    setError(null);
     try {
       const res = await fetch(`/api/admin/posts/${id}`, { method: "DELETE" });
-      if (!res.ok) return;
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Could not delete post.");
+        return;
+      }
       setPosts((current) => current.filter((post) => post.id !== id));
       router.refresh();
+    } catch {
+      setError("Network error while deleting.");
     } finally {
       setBusyId(null);
     }
@@ -76,6 +90,12 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
           New post
         </Link>
       </div>
+
+      {error ? (
+        <p className="rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
+          {error}
+        </p>
+      ) : null}
 
       {posts.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/15 px-5 py-12 text-center text-white/45">
@@ -147,9 +167,9 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
                     type="button"
                     disabled={busyId === post.id}
                     onClick={() => void remove(post.id)}
-                    className="rounded-full border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300/80 transition hover:border-red-400/40 hover:text-red-200 disabled:opacity-50"
+                    className="rounded-full border border-red-400/35 bg-red-400/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:border-red-400/55 hover:bg-red-400/20 disabled:opacity-50"
                   >
-                    Delete
+                    {busyId === post.id ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </div>

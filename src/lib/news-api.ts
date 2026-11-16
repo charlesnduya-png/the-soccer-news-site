@@ -106,6 +106,22 @@ export function clearNewsCache() {
   }
 }
 
+/** Drop a deleted admin editorial from live news caches immediately. */
+export function purgeAdminPostFromNewsCaches(postId: string) {
+  const newsId = `admin-${postId}`;
+  articleByIdCache.delete(newsId);
+  for (const [topic, entry] of newsCache) {
+    const articles = entry.articles.filter((article) => article.id !== newsId);
+    if (articles.length !== entry.articles.length) {
+      newsCache.set(topic, {
+        ...entry,
+        articles,
+        expiresAt: 0,
+      });
+    }
+  }
+}
+
 /** Premier League–focused feeds */
 const PL_RSS_FEEDS = [
   { url: "https://www.skysports.com/rss/12040", source: "Sky Sports PL" },

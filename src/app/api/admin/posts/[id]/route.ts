@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated, isAdminConfigured } from "@/lib/admin-auth";
 import {
@@ -7,6 +8,7 @@ import {
   type AdminPostStatus,
 } from "@/lib/admin-store";
 import { isNewsTopic, type NewsTopic } from "@/lib/league-news-config";
+import { purgeAdminPostFromNewsCaches } from "@/lib/news-api";
 
 export const dynamic = "force-dynamic";
 
@@ -80,5 +82,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
   if (!deleteAdminPost(id)) {
     return NextResponse.json({ error: "Post not found." }, { status: 404 });
   }
+
+  purgeAdminPostFromNewsCaches(id);
+  try {
+    revalidatePath("/");
+    revalidatePath("/news");
+    revalidatePath("/updates");
+    revalidatePath("/admin/posts");
+    revalidatePath(`/news/admin-${id}`);
+  } catch {
+    // revalidatePath may be unavailable outside a full request context
+  }
+
   return NextResponse.json({ ok: true });
 }

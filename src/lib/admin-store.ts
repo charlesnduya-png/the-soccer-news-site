@@ -333,9 +333,16 @@ export function updateAdminPost(
 
 export function deleteAdminPost(id: string): boolean {
   const store = readStore();
-  const next = store.posts.filter((post) => post.id !== id);
-  if (next.length === store.posts.length) return false;
-  store.posts = next;
+  const post = store.posts.find((item) => item.id === id);
+  if (!post) return false;
+
+  // Free linked cover media when it lives in our store.
+  const mediaMatch = post.image?.match(/^\/api\/admin\/media\/([^/?#]+)/);
+  if (mediaMatch?.[1] && store.media[mediaMatch[1]]) {
+    delete store.media[mediaMatch[1]];
+  }
+
+  store.posts = store.posts.filter((item) => item.id !== id);
   writeStore(store);
   return true;
 }

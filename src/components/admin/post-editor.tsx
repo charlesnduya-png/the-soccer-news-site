@@ -20,6 +20,7 @@ export function PostEditor({ post }: { post?: AdminPost }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedHint =
     ADMIN_POST_TOPIC_OPTIONS.find((option) => option.value === topic)?.hint ??
@@ -72,6 +73,33 @@ export function PostEditor({ post }: { post?: AdminPost }) {
       setError("Network error while saving.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!post) return;
+    if (
+      !window.confirm(
+        "Delete this news post permanently? It will disappear from the site feeds."
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/posts/${post.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || "Could not delete post.");
+        return;
+      }
+      router.push("/admin/posts");
+      router.refresh();
+    } catch {
+      setError("Network error while deleting.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -202,11 +230,11 @@ export function PostEditor({ post }: { post?: AdminPost }) {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void save()}
-          disabled={saving || uploading || !title.trim() || !body.trim()}
+          disabled={saving || uploading || deleting || !title.trim() || !body.trim()}
           className="rounded-full bg-[#00ff87] px-5 py-2.5 text-sm font-bold text-[#07060f] transition hover:bg-[#7dffb8] disabled:opacity-50"
         >
           {saving ? "Saving…" : post ? "Update post" : "Publish post"}
@@ -214,10 +242,21 @@ export function PostEditor({ post }: { post?: AdminPost }) {
         <button
           type="button"
           onClick={() => router.push("/admin/posts")}
-          className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/70 transition hover:border-white/30 hover:text-white"
+          disabled={saving || deleting}
+          className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-50"
         >
           Cancel
         </button>
+        {post ? (
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={saving || uploading || deleting}
+            className="rounded-full border border-red-400/30 px-5 py-2.5 text-sm font-semibold text-red-300 transition hover:border-red-400/55 hover:bg-red-400/10 hover:text-red-100 disabled:opacity-50 sm:ml-auto"
+          >
+            {deleting ? "Deleting…" : "Delete post"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
