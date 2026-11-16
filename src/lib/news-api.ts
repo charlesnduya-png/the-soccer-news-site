@@ -56,8 +56,6 @@ const RETRY_CACHE_TTL_MS = 45 * 1000;
 const NEWS_REFRESH_BUDGET_MS = 5_000;
 /** Image scrapes run in the background after first publish. */
 const IMAGE_ENRICH_BUDGET_MS = 8_000;
-/** Big-five + next tier only on the hot path; cron still warms these often enough. */
-const EUROPE_HOT_FEED_COUNT = 6;
 const NEWS_POOL_SIZE = 50;
 const ARTICLE_CONTENT_MAX_CHARS = 20_000;
 /** Free GNews plans rate-limit quickly — pause after 429 and space out calls. */
@@ -1077,13 +1075,11 @@ function feedsForTopic(topic: NewsTopic) {
     return [{ url: league.googleNewsRss, source: leagueSourceLabel(topic) }];
   }
   if (topic === "european-leagues") {
-    // Publisher RSS first — these include real thumbnails. Google News RSS
-    // rarely ships images and decoding those links is rate-limited.
+    // All league Google News feeds first so home shows PL, La Liga, Bundesliga…
+    // Keep a couple of PL publisher feeds for image-rich Premier League cards.
     return [
-      ...PL_RSS_FEEDS,
-      ...leagueRssFeeds()
-        .slice(0, EUROPE_HOT_FEED_COUNT)
-        .map(({ url, source }) => ({ url, source })),
+      ...leagueRssFeeds().map(({ url, source }) => ({ url, source })),
+      ...PL_RSS_FEEDS.slice(0, 2),
     ];
   }
   return [
@@ -1249,9 +1245,16 @@ async function fetchFromRssFeed(
 
     const plFeed = feed.source.includes("PL") || feed.source.includes("Premier");
     const leagueFeed = feed.source.startsWith("Google News ·");
+    // Cap per-feed take so one league (esp. PL publishers) cannot flood Europe.
+    const perFeedCap =
+      topic === "european-leagues" && plFeed
+        ? 6
+        : topic === "european-leagues" && leagueFeed
+          ? 5
+          : 25;
 
     return (result.items ?? [])
-      .slice(0, 25)
+      .slice(0, perFeedCap)
       .filter((item) => {
         const title = item.title ?? "";
         const description = stripHtml(item.contentSnippet ?? item.content ?? item.summary ?? "");
@@ -1405,6 +1408,76 @@ function preferArticlesWithImages(articles: NewsArticle[]): NewsArticle[] {
     if (scoreDifference) return scoreDifference;
     return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
   });
+}
+
+/** Map an article into a league bucket for the Europe home mix. */
+function europeanLeagueBucket(article: NewsArticle): string {
+  if (article.source.startsWith("Google News · ")) {
+    return article.source.replace("Google News · ", "");
+  }
+  if (
+    article.source.includes("PL") ||
+    article.source.includes("Premier") ||
+    article.source === "BBC Sport" ||
+    article.source === "ESPN Soccer"
+  ) {
+    return "Premier League";
+  }
+  for (const league of LEAGUE_NEWS_CONFIG) {
+    if (matchesLeagueArticle(article.title, article.description, league.slug)) {
+      return league.name;
+    }
+  }
+  return "Europe";
+}
+
+/**
+ * Round-robin across leagues so homepage Europe news shows Premier League,
+ * La Liga, Bundesliga, Serie A, etc. — not one publisher pile.
+ */
+function balanceEuropeanLeagueMix(articles: NewsArticle[]): NewsArticle[] {
+  const buckets = new Map<string, NewsArticle[]>();
+  for (const article of articles) {
+    const key = europeanLeagueBucket(article);
+    const list = buckets.get(key) ?? [];
+    list.push(article);
+    buckets.set(key, list);
+  }
+
+  for (const [key, list] of buckets) {
+    buckets.set(key, preferArticlesWithImages(list));
+  }
+
+  const order = [
+    ...LEAGUE_NEWS_CONFIG.map((league) => league.name),
+    "Europe",
+  ];
+  const result: NewsArticle[] = [];
+  const seen = new Set<string>();
+  let added = true;
+
+  while (added && result.length < NEWS_POOL_SIZE) {
+    added = false;
+    for (const key of order) {
+      const list = buckets.get(key);
+      if (!list?.length) continue;
+      const next = list.shift()!;
+      if (seen.has(next.id)) continue;
+      seen.add(next.id);
+      result.push(next);
+      added = true;
+    }
+    for (const [key, list] of buckets) {
+      if (order.includes(key) || !list.length) continue;
+      const next = list.shift()!;
+      if (seen.has(next.id)) continue;
+      seen.add(next.id);
+      result.push(next);
+      added = true;
+    }
+  }
+
+  return result;
 }
 
 export function hasGNewsApi(): boolean {
@@ -1802,9 +1875,11 @@ async function refreshNews(topic: NewsTopic): Promise<NewsCacheEntry> {
 
       // Rank with whatever images we already have (RSS/GNews/YouTube/carry-forward).
       // Publisher og:image scrapes run in the background after we publish.
-      if (
+      // Europe: round-robin leagues so home isn't all Premier League RSS.
+      if (topic === "european-leagues") {
+        merged = balanceEuropeanLeagueMix(merged);
+      } else if (
         topic === "kenyan-football" ||
-        topic === "european-leagues" ||
         topic === "premier-league" ||
         topic === "transfers"
       ) {
