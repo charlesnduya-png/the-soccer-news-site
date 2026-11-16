@@ -6,6 +6,7 @@ import {
   updateAdminPost,
   type AdminPostStatus,
 } from "@/lib/admin-store";
+import { isNewsTopic, type NewsTopic } from "@/lib/league-news-config";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     body?: string;
     status?: AdminPostStatus;
     author?: string;
+    topic?: string;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -48,7 +50,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const post = updateAdminPost(id, body);
+  const topic: NewsTopic | undefined =
+    body.topic && isNewsTopic(body.topic) ? body.topic : undefined;
+
+  const post = updateAdminPost(id, {
+    title: body.title,
+    body: body.body,
+    status: body.status,
+    author: body.author,
+    topic,
+  });
   if (!post) {
     return NextResponse.json({ error: "Post not found." }, { status: 404 });
   }

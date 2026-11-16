@@ -16,6 +16,12 @@ import {
 } from "./league-news-config";
 import type { NewsArticle } from "./types";
 import {
+  getPublishedAdminNews,
+  getAdminPost,
+  parseAdminPostNewsId,
+  adminPostToNewsArticle,
+} from "./admin-store";
+import {
   extractVideoUrlFromHtml,
   isLikelyVideoUrl,
   looksLikeVideoStory,
@@ -2002,15 +2008,19 @@ export async function getNewsSnapshot(
   const safeLimit = Math.min(Math.max(Math.trunc(limit) || DEFAULT_LIMIT, 1), 50);
   const cached = newsCache.get(topic);
 
-  const toSnapshot = (entry: NewsCacheEntry): NewsSnapshot => ({
-    articles: entry.articles.slice(0, safeLimit),
-    fetchedAt: entry.fetchedAt,
-    newestArticleAt: entry.newestArticleAt,
-    successfulSources: entry.successfulSources,
-    failedSources: entry.failedSources,
-    isFallback: entry.isFallback,
-    degraded: entry.degraded,
-  });
+  const toSnapshot = (entry: NewsCacheEntry): NewsSnapshot => {
+    const editorial = getPublishedAdminNews(topic);
+    const merged = dedupeArticles([...editorial, ...entry.articles]);
+    return {
+      articles: merged.slice(0, safeLimit),
+      fetchedAt: entry.fetchedAt,
+      newestArticleAt: newestArticleDate(merged),
+      successfulSources: entry.successfulSources,
+      failedSources: entry.failedSources,
+      isFallback: entry.isFallback,
+      degraded: entry.degraded,
+    };
+  };
 
   // Fresh cache — return immediately.
   if (cached && cached.expiresAt > Date.now()) {
@@ -2035,7 +2045,11 @@ export async function getNewsSnapshot(
     ]);
     return toSnapshot(entry);
   } catch {
-    const fallback = fallbackForTopic(topic).slice(0, safeLimit);
+    const editorial = getPublishedAdminNews(topic);
+    const fallback = dedupeArticles([
+      ...editorial,
+      ...fallbackForTopic(topic),
+    ]).slice(0, safeLimit);
     return {
       articles: fallback,
       fetchedAt: new Date().toISOString(),
@@ -2097,6 +2111,14 @@ function indexArticlesById(articles: NewsArticle[]) {
 export async function getNewsArticleById(id: string): Promise<NewsArticle | null> {
   const safeId = decodeURIComponent(id).trim();
   if (!safeId) return null;
+
+  const adminId = parseAdminPostNewsId(safeId);
+  if (adminId) {
+    const post = getAdminPost(adminId);
+    if (post?.status === "published") {
+      return adminPostToNewsArticle(post);
+    }
+  }
 
   const cachedHit = findCachedArticleById(safeId);
   let found = cachedHit;

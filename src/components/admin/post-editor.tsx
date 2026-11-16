@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  ADMIN_POST_TOPIC_OPTIONS,
+} from "@/lib/admin-post-topics";
 import type { AdminPost, AdminPostStatus } from "@/lib/admin-store";
+import type { NewsTopic } from "@/lib/league-news-config";
 
 export function PostEditor({ post }: { post?: AdminPost }) {
   const router = useRouter();
@@ -10,8 +14,15 @@ export function PostEditor({ post }: { post?: AdminPost }) {
   const [body, setBody] = useState(post?.body ?? "");
   const [author, setAuthor] = useState(post?.author ?? "Admin");
   const [status, setStatus] = useState<AdminPostStatus>(post?.status ?? "published");
+  const [topic, setTopic] = useState<NewsTopic>(
+    post?.topic ?? "european-leagues"
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const selectedHint =
+    ADMIN_POST_TOPIC_OPTIONS.find((option) => option.value === topic)?.hint ??
+    "";
 
   async function save() {
     setSaving(true);
@@ -22,7 +33,7 @@ export function PostEditor({ post }: { post?: AdminPost }) {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, author, status }),
+        body: JSON.stringify({ title, body, author, status, topic }),
       });
       const data = (await res.json()) as { error?: string; post?: AdminPost };
       if (!res.ok || !data.post) {
@@ -53,6 +64,25 @@ export function PostEditor({ post }: { post?: AdminPost }) {
             required
           />
         </label>
+
+        <label className="block sm:col-span-2">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+            Display in news category
+          </span>
+          <select
+            value={topic}
+            onChange={(event) => setTopic(event.target.value as NewsTopic)}
+            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-white outline-none focus:border-[#00ff87]/50 focus:ring-2 focus:ring-[#00ff87]/25"
+          >
+            {ADMIN_POST_TOPIC_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-white/45">{selectedHint}</p>
+        </label>
+
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
             Author

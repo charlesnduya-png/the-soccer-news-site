@@ -2835,3 +2835,239 @@ html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
 .admin-card {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
+
+/* Shopify-style admin analytics */
+.shopify-analytics {
+  color: #202223;
+}
+
+.shopify-analytics__intro {
+  margin-bottom: 0.25rem;
+}
+
+.shopify-analytics__heading {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-bebas), Impact, sans-serif;
+  font-size: clamp(1.85rem, 3vw, 2.4rem);
+  letter-spacing: 0.04em;
+  color: #37003c;
+}
+
+.shopify-analytics__sub {
+  margin: 0.4rem 0 0;
+  max-width: 40rem;
+  color: rgba(32, 34, 35, 0.62);
+  font-size: 0.95rem;
+}
+
+.shopify-stat-card,
+.shopify-panel {
+  background: #ffffff;
+  border: 1px solid #e1e3e5;
+  border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.shopify-stat-card {
+  padding: 1.1rem 1.15rem 1.2rem;
+}
+
+.shopify-stat-card__label,
+.shopify-panel__eyebrow,
+.shopify-device__label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(32, 34, 35, 0.5);
+}
+
+.shopify-stat-card__value {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-bebas), Impact, sans-serif;
+  font-size: 2.35rem;
+  letter-spacing: 0.03em;
+  color: #202223;
+  line-height: 1;
+}
+
+.shopify-stat-card__value--accent {
+  color: #008060;
+}
+
+.shopify-stat-card__hint,
+.shopify-panel__meta,
+.shopify-panel__footnote,
+.shopify-device__pct {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: rgba(32, 34, 35, 0.5);
+}
+
+.shopify-panel {
+  padding: 1.15rem 1.2rem 1.25rem;
+}
+
+.shopify-panel--error {
+  border-color: #fed3d1;
+  background: #fff4f4;
+  color: #d72c0d;
+}
+
+.shopify-panel__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.shopify-panel__title {
+  margin: 0.2rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #202223;
+}
+
+.shopify-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  height: 12.5rem;
+  padding-top: 0.5rem;
+}
+
+.shopify-chart__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  height: 100%;
+}
+
+.shopify-chart__bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.shopify-chart__bar {
+  width: 100%;
+  max-width: 26px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #00ff87 0%, #008060 100%);
+  min-height: 6px;
+}
+
+.shopify-chart__label {
+  font-size: 0.65rem;
+  color: rgba(32, 34, 35, 0.45);
+}
+
+.shopify-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shopify-table th,
+.shopify-table td {
+  padding: 0.7rem 0.25rem;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.shopify-table th {
+  color: rgba(32, 34, 35, 0.5);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.shopify-table td:last-child,
+.shopify-table th:last-child {
+  text-align: right;
+  font-weight: 700;
+  color: #008060;
+}
+
+.shopify-table__empty {
+  text-align: center !important;
+  color: rgba(32, 34, 35, 0.45) !important;
+  font-weight: 500 !important;
+}
+
+.shopify-device-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.shopify-device {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #f6f6f7;
+  padding: 0.8rem 0.85rem;
+}
+
+.shopify-device__value {
+  margin: 0.25rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #37003c;
+}
+
+.shopify-device__track {
+  margin-top: 0.55rem;
+  height: 6px;
+  border-radius: 999px;
+  background: #e4e5e7;
+  overflow: hidden;
+}
+
+.shopify-device__track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #00ff87;
+}
+
+.shopify-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shopify-pill--ok {
+  background: rgba(0, 128, 96, 0.12);
+  color: #008060;
+}
+
+.shopify-pill--bad {
+  background: rgba(215, 44, 13, 0.12);
+  color: #d72c0d;
+}
+
+.shopify-analytics {
+  margin: -0.5rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: #f1f2f4;
+}
+
+@media (min-width: 640px) {
+  .shopify-analytics {
+    margin: 0;
+    padding: 1.25rem;
+  }
+}

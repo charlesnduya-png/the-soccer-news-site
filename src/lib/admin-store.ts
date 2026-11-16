@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
+import {
+  isLeagueSlug,
+  isNewsTopic,
+  type NewsTopic,
+} from "@/lib/league-news-config";
+import type { NewsArticle } from "@/lib/types";
 
 export type AdminPostStatus = "draft" | "published";
 
@@ -9,6 +15,8 @@ export type AdminPost = {
   title: string;
   body: string;
   status: AdminPostStatus;
+  /** News feed / category where this post should appear. */
+  topic: NewsTopic;
   author: string;
   createdAt: string;
   updatedAt: string;
@@ -74,7 +82,9 @@ function readStore(): StoreShape {
     if (existsSync(file)) {
       const parsed = JSON.parse(readFileSync(file, "utf8")) as StoreShape;
       memoryStore = {
-        posts: Array.isArray(parsed.posts) ? parsed.posts : [],
+        posts: Array.isArray(parsed.posts)
+          ? parsed.posts.map(normalizeAdminPost)
+          : [],
         analytics: {
           days: Array.isArray(parsed.analytics?.days) ? parsed.analytics.days : [],
           totalViews: Number(parsed.analytics?.totalViews) || 0,
@@ -101,6 +111,61 @@ function writeStore(store: StoreShape) {
 
 function dayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeAdminPost(raw: Partial<AdminPost> & { id: string }): AdminPost {
+  const topic =
+    raw.topic && isNewsTopic(raw.topic) ? raw.topic : "european-leagues";
+  return {
+    id: raw.id,
+    title: raw.title ?? "Untitled",
+    body: raw.body ?? "",
+    status: raw.status === "draft" ? "draft" : "published",
+    topic,
+    author: raw.author ?? "Admin",
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    updatedAt: raw.updatedAt ?? raw.createdAt ?? new Date().toISOString(),
+    publishedAt: raw.publishedAt ?? null,
+  };
+}
+
+export function adminPostNewsId(postId: string): string {
+  return `admin-${postId}`;
+}
+
+export function parseAdminPostNewsId(id: string): string | null {
+  if (!id.startsWith("admin-")) return null;
+  return id.slice("admin-".length) || null;
+}
+
+export function adminPostMatchesTopic(post: AdminPost, topic: NewsTopic): boolean {
+  if (post.status !== "published") return false;
+  if (topic === "all") return true;
+  if (post.topic === topic) return true;
+  // Home / Europe feed also includes posts aimed at a specific European league.
+  if (topic === "european-leagues") {
+    return post.topic === "european-leagues" || isLeagueSlug(post.topic);
+  }
+  return false;
+}
+
+export function adminPostToNewsArticle(post: AdminPost): NewsArticle {
+  const description = post.body.replace(/\s+/g, " ").trim().slice(0, 280);
+  return {
+    id: adminPostNewsId(post.id),
+    title: post.title,
+    description,
+    content: post.body,
+    link: `/news/${adminPostNewsId(post.id)}`,
+    pubDate: post.publishedAt ?? post.createdAt,
+    source: "soccer.co.ke",
+  };
+}
+
+export function getPublishedAdminNews(topic: NewsTopic): NewsArticle[] {
+  return listAdminPosts({ status: "published" })
+    .filter((post) => adminPostMatchesTopic(post, topic))
+    .map(adminPostToNewsArticle);
 }
 
 function detectDevice(userAgent: string): keyof AnalyticsDay["devices"] {
@@ -158,15 +223,19 @@ export function createAdminPost(input: {
   title: string;
   body: string;
   status: AdminPostStatus;
+  topic?: NewsTopic;
   author?: string;
 }): AdminPost {
   const store = readStore();
   const now = new Date().toISOString();
+  const topic =
+    input.topic && isNewsTopic(input.topic) ? input.topic : "european-leagues";
   const post: AdminPost = {
     id: randomUUID(),
     title: input.title.trim(),
     body: input.body.trim(),
     status: input.status,
+    topic,
     author: (input.author || "Admin").trim() || "Admin",
     createdAt: now,
     updatedAt: now,
@@ -179,7 +248,7 @@ export function createAdminPost(input: {
 
 export function updateAdminPost(
   id: string,
-  input: Partial<Pick<AdminPost, "title" | "body" | "status" | "author">>
+  input: Partial<Pick<AdminPost, "title" | "body" | "status" | "author" | "topic">>
 ): AdminPost | null {
   const store = readStore();
   const index = store.posts.findIndex((post) => post.id === id);
@@ -187,11 +256,14 @@ export function updateAdminPost(
   const current = store.posts[index];
   const nextStatus = input.status ?? current.status;
   const now = new Date().toISOString();
+  const topic =
+    input.topic && isNewsTopic(input.topic) ? input.topic : current.topic;
   const updated: AdminPost = {
     ...current,
     title: input.title?.trim() ?? current.title,
     body: input.body?.trim() ?? current.body,
     author: input.author?.trim() || current.author,
+    topic,
     status: nextStatus,
     updatedAt: now,
     publishedAt:

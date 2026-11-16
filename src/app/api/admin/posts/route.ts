@@ -5,6 +5,7 @@ import {
   listAdminPosts,
   type AdminPostStatus,
 } from "@/lib/admin-store";
+import { isNewsTopic, type NewsTopic } from "@/lib/league-news-config";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     body?: string;
     status?: AdminPostStatus;
     author?: string;
+    topic?: string;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -50,11 +52,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const topic: NewsTopic =
+    body.topic && isNewsTopic(body.topic) ? body.topic : "european-leagues";
+
   const post = createAdminPost({
     title,
     body: content,
     status: body.status === "draft" ? "draft" : "published",
     author: body.author,
+    topic,
   });
 
   return NextResponse.json({ post }, { status: 201 });

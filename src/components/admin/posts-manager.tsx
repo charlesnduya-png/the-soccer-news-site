@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { adminTopicDisplayLabel } from "@/lib/admin-post-topics";
 import type { AdminPost } from "@/lib/admin-store";
 
 function formatWhen(value: string): string {
@@ -106,6 +107,9 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
                   <h3 className="truncate text-lg font-semibold text-white">
                     {post.title}
                   </h3>
+                  <p className="mt-1 text-xs font-semibold text-[#00ff87]/85">
+                    Shows in · {adminTopicDisplayLabel(post.topic)}
+                  </p>
                   <p className="mt-1 line-clamp-2 text-sm text-white/45">
                     {post.body}
                   </p>

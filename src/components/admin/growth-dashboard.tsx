@@ -17,20 +17,20 @@ function StatCard({
   label,
   value,
   hint,
+  accent,
 }: {
   label: string;
   value: string;
   hint?: string;
+  accent?: boolean;
 }) {
   return (
-    <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
-        {label}
-      </p>
-      <p className="mt-2 font-[family-name:var(--font-bebas)] text-4xl tracking-wide text-white">
+    <div className="shopify-stat-card">
+      <p className="shopify-stat-card__label">{label}</p>
+      <p className={`shopify-stat-card__value ${accent ? "shopify-stat-card__value--accent" : ""}`}>
         {value}
       </p>
-      {hint ? <p className="mt-1 text-sm text-white/40">{hint}</p> : null}
+      {hint ? <p className="shopify-stat-card__hint">{hint}</p> : null}
     </div>
   );
 }
@@ -38,32 +38,23 @@ function StatCard({
 function ViewsChart({ series }: { series: GrowthSnapshot["series"] }) {
   const max = Math.max(1, ...series.map((point) => point.views));
   return (
-    <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="mb-5 flex items-end justify-between gap-3">
+    <div className="shopify-panel">
+      <div className="shopify-panel__head">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#00ff87]/85">
-            Traffic
-          </p>
-          <h2 className="font-[family-name:var(--font-bebas)] text-2xl tracking-wide text-white">
-            Last 14 days
-          </h2>
+          <p className="shopify-panel__eyebrow">Traffic</p>
+          <h2 className="shopify-panel__title">Sessions over time</h2>
         </div>
-        <p className="text-sm text-white/40">Page views</p>
+        <p className="shopify-panel__meta">Last 14 days · page views</p>
       </div>
-      <div className="flex h-48 items-end gap-1.5 sm:gap-2">
+      <div className="shopify-chart">
         {series.map((point) => {
-          const height = Math.max(4, Math.round((point.views / max) * 100));
-          const label = point.date.slice(5);
+          const height = Math.max(6, Math.round((point.views / max) * 100));
           return (
-            <div key={point.date} className="group flex min-w-0 flex-1 flex-col items-center gap-2">
-              <div className="relative flex h-40 w-full items-end justify-center">
-                <div
-                  className="w-full max-w-[28px] rounded-t-md bg-gradient-to-t from-[#00ff87]/25 to-[#00ff87] transition group-hover:from-[#00ff87]/40 group-hover:to-[#7dffb8]"
-                  style={{ height: `${height}%` }}
-                  title={`${point.date}: ${point.views} views`}
-                />
+            <div key={point.date} className="shopify-chart__col" title={`${point.date}: ${point.views}`}>
+              <div className="shopify-chart__bar-wrap">
+                <div className="shopify-chart__bar" style={{ height: `${height}%` }} />
               </div>
-              <span className="truncate text-[10px] text-white/35">{label}</span>
+              <span className="shopify-chart__label">{point.date.slice(8)}</span>
             </div>
           );
         })}
@@ -107,21 +98,23 @@ export function GrowthDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="animate-pulse space-y-4">
+      <div className="shopify-analytics animate-pulse space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 rounded-2xl bg-white/5" />
+            <div key={i} className="h-28 rounded-xl bg-white/70" />
           ))}
         </div>
-        <div className="h-64 rounded-2xl bg-white/5" />
+        <div className="h-64 rounded-xl bg-white/70" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="rounded-2xl border border-red-400/30 bg-red-400/10 px-5 py-8 text-red-200">
-        {error || "No growth data yet."}
+      <div className="shopify-analytics">
+        <div className="shopify-panel shopify-panel--error">
+          {error || "No growth data yet."}
+        </div>
       </div>
     );
   }
@@ -134,87 +127,97 @@ export function GrowthDashboard() {
     growth.devices.other;
 
   return (
-    <div className="space-y-6">
-      <section>
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#00ff87]/85">
-          Site growth
-        </p>
-        <h2 className="font-[family-name:var(--font-bebas)] text-3xl tracking-wide text-white sm:text-4xl">
-          Audience & reach
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm text-white/50">
-          First-party page views from soccer.co.ke visitors. Numbers grow as
-          people browse the live site.
+    <div className="shopify-analytics space-y-5">
+      <section className="shopify-analytics__intro">
+        <p className="shopify-panel__eyebrow">Analytics</p>
+        <h2 className="shopify-analytics__heading">Site growth</h2>
+        <p className="shopify-analytics__sub">
+          Shopify-style traffic overview for soccer.co.ke — live page views,
+          top pages, and audience mix.
         </p>
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Today" value={formatNumber(growth.today)} hint="Page views" />
-        <StatCard label="7 days" value={formatNumber(growth.last7Days)} />
-        <StatCard label="30 days" value={formatNumber(growth.last30Days)} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Today" value={formatNumber(growth.today)} hint="Page views" accent />
+        <StatCard label="Last 7 days" value={formatNumber(growth.last7Days)} />
+        <StatCard label="Last 30 days" value={formatNumber(growth.last30Days)} />
         <StatCard
-          label="All time"
+          label="Total views"
           value={formatNumber(growth.totalViews)}
-          hint={`${growth.publishedPosts} published · ${growth.draftPosts} drafts`}
+          hint={`${growth.publishedPosts} live posts · ${growth.draftPosts} drafts`}
         />
       </div>
 
       <ViewsChart series={growth.series} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="font-[family-name:var(--font-bebas)] text-2xl tracking-wide text-white">
-            Top pages
-          </h3>
-          <ul className="mt-4 space-y-3">
-            {growth.topPages.length === 0 ? (
-              <li className="text-sm text-white/40">No page views recorded yet.</li>
-            ) : (
-              growth.topPages.map((page) => (
-                <li
-                  key={page.path}
-                  className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 text-sm last:border-0"
-                >
-                  <span className="truncate text-white/80">{page.path}</span>
-                  <span className="shrink-0 font-semibold text-[#00ff87]">
-                    {formatNumber(page.views)}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
+        <div className="shopify-panel">
+          <div className="shopify-panel__head">
+            <h3 className="shopify-panel__title">Top pages</h3>
+          </div>
+          <table className="shopify-table">
+            <thead>
+              <tr>
+                <th>Page</th>
+                <th>Views</th>
+              </tr>
+            </thead>
+            <tbody>
+              {growth.topPages.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="shopify-table__empty">
+                    No page views recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                growth.topPages.map((page) => (
+                  <tr key={page.path}>
+                    <td>{page.path}</td>
+                    <td>{formatNumber(page.views)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
-        <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="font-[family-name:var(--font-bebas)] text-2xl tracking-wide text-white">
-            Top referrers
-          </h3>
-          <ul className="mt-4 space-y-3">
-            {growth.topReferrers.length === 0 ? (
-              <li className="text-sm text-white/40">Waiting for referral traffic.</li>
-            ) : (
-              growth.topReferrers.map((row) => (
-                <li
-                  key={row.source}
-                  className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 text-sm last:border-0"
-                >
-                  <span className="truncate text-white/80">{row.source}</span>
-                  <span className="shrink-0 font-semibold text-[#00ff87]">
-                    {formatNumber(row.views)}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
+        <div className="shopify-panel">
+          <div className="shopify-panel__head">
+            <h3 className="shopify-panel__title">Referrers</h3>
+          </div>
+          <table className="shopify-table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Views</th>
+              </tr>
+            </thead>
+            <tbody>
+              {growth.topReferrers.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="shopify-table__empty">
+                    Waiting for referral traffic.
+                  </td>
+                </tr>
+              ) : (
+                growth.topReferrers.map((row) => (
+                  <tr key={row.source}>
+                    <td>{row.source}</td>
+                    <td>{formatNumber(row.views)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="font-[family-name:var(--font-bebas)] text-2xl tracking-wide text-white">
-            Devices
-          </h3>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="shopify-panel">
+          <div className="shopify-panel__head">
+            <h3 className="shopify-panel__title">Devices</h3>
+          </div>
+          <div className="shopify-device-grid">
             {(
               [
                 ["Mobile", growth.devices.mobile],
@@ -227,48 +230,53 @@ export function GrowthDashboard() {
                 ? Math.round((value / deviceTotal) * 100)
                 : 0;
               return (
-                <div
-                  key={label}
-                  className="rounded-xl border border-white/8 bg-black/20 px-3 py-3"
-                >
-                  <p className="text-xs uppercase tracking-[0.14em] text-white/40">
-                    {label}
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-white">
-                    {formatNumber(value)}
-                  </p>
-                  <p className="text-xs text-[#00ff87]/80">{pct}%</p>
+                <div key={label} className="shopify-device">
+                  <p className="shopify-device__label">{label}</p>
+                  <p className="shopify-device__value">{formatNumber(value)}</p>
+                  <div className="shopify-device__track">
+                    <span style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="shopify-device__pct">{pct}%</p>
                 </div>
               );
             })}
           </div>
         </div>
 
-        <div className="admin-card rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h3 className="font-[family-name:var(--font-bebas)] text-2xl tracking-wide text-white">
-            Site pulse
-          </h3>
-          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-3">
-              <dt className="text-white/40">Status</dt>
-              <dd className={pulse.ok ? "text-[#00ff87]" : "text-red-300"}>
-                {pulse.ok ? "Healthy" : "Degraded"}
-              </dd>
+        <div className="shopify-panel">
+          <div className="shopify-panel__head">
+            <h3 className="shopify-panel__title">Live hub pulse</h3>
+            <span
+              className={`shopify-pill ${pulse.ok ? "shopify-pill--ok" : "shopify-pill--bad"}`}
+            >
+              {pulse.ok ? "Healthy" : "Degraded"}
+            </span>
+          </div>
+          <div className="shopify-device-grid">
+            <div className="shopify-device">
+              <p className="shopify-device__label">News</p>
+              <p className="shopify-device__value">{formatNumber(pulse.newsCount)}</p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-3">
-              <dt className="text-white/40">News stories</dt>
-              <dd className="text-white">{formatNumber(pulse.newsCount)}</dd>
+            <div className="shopify-device">
+              <p className="shopify-device__label">Live matches</p>
+              <p className="shopify-device__value">
+                {formatNumber(pulse.liveMatchCount)}
+              </p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-3">
-              <dt className="text-white/40">Live matches</dt>
-              <dd className="text-white">{formatNumber(pulse.liveMatchCount)}</dd>
+            <div className="shopify-device">
+              <p className="shopify-device__label">Transfers</p>
+              <p className="shopify-device__value">
+                {formatNumber(pulse.transferCount)}
+              </p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-3">
-              <dt className="text-white/40">Transfers</dt>
-              <dd className="text-white">{formatNumber(pulse.transferCount)}</dd>
+            <div className="shopify-device">
+              <p className="shopify-device__label">Fixtures</p>
+              <p className="shopify-device__value">
+                {formatNumber(pulse.fixtureCount)}
+              </p>
             </div>
-          </dl>
-          <p className="mt-3 text-xs text-white/35">
+          </div>
+          <p className="shopify-panel__footnote">
             Pulse age {pulse.ageSeconds}s · next warm in {pulse.nextWarmInSeconds}s
           </p>
         </div>
