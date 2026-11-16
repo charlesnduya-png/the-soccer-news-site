@@ -1470,53 +1470,59 @@ function europeanLeagueBucket(article: NewsArticle): string {
   return "Europe";
 }
 
+/** Drop stale Europe fillers so home always reads as a live news river. */
+const EUROPE_HOME_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+/** Soft diversity: avoid one league monopolising the first screen. */
+const EUROPE_TOP_PER_LEAGUE = 3;
+
+function articleTime(article: NewsArticle): number {
+  const value = new Date(article.pubDate).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
 /**
- * Round-robin across leagues so homepage Europe news shows Premier League,
- * La Liga, Bundesliga, Serie A, etc. — not one publisher pile.
+ * Homepage Europe flow: newest first (like the earlier live river), with light
+ * league variety among recent stories — never promote months-old league fillers.
  */
 function balanceEuropeanLeagueMix(articles: NewsArticle[]): NewsArticle[] {
-  const buckets = new Map<string, NewsArticle[]>();
-  for (const article of articles) {
-    const key = europeanLeagueBucket(article);
-    const list = buckets.get(key) ?? [];
-    list.push(article);
-    buckets.set(key, list);
+  const now = Date.now();
+  const fresh = articles.filter(
+    (article) => now - articleTime(article) <= EUROPE_HOME_MAX_AGE_MS
+  );
+  const pool = fresh.length >= 8 ? fresh : articles;
+
+  const byNewest = [...pool].sort((a, b) => articleTime(b) - articleTime(a));
+
+  // Written news leads; video clips trail so the river stays story-first.
+  const written = byNewest.filter((article) => !article.videoUrl);
+  const videos = byNewest.filter((article) => Boolean(article.videoUrl));
+
+  const selected: NewsArticle[] = [];
+  const deferred: NewsArticle[] = [];
+  const leagueCounts = new Map<string, number>();
+
+  for (const article of written) {
+    const league = europeanLeagueBucket(article);
+    const count = leagueCounts.get(league) ?? 0;
+    // Only soft-cap while filling the first homepage screen.
+    if (count >= EUROPE_TOP_PER_LEAGUE && selected.length < 12) {
+      deferred.push(article);
+      continue;
+    }
+    leagueCounts.set(league, count + 1);
+    selected.push(article);
   }
 
-  for (const [key, list] of buckets) {
-    buckets.set(key, preferArticlesWithImages(list));
-  }
-
-  const order = [
-    ...LEAGUE_NEWS_CONFIG.map((league) => league.name),
-    "Europe",
-  ];
-  const result: NewsArticle[] = [];
+  // Deferred items stay newest-first after the diversified top.
+  const flow = [...selected, ...deferred, ...videos];
   const seen = new Set<string>();
-  let added = true;
-
-  while (added && result.length < NEWS_POOL_SIZE) {
-    added = false;
-    for (const key of order) {
-      const list = buckets.get(key);
-      if (!list?.length) continue;
-      const next = list.shift()!;
-      if (seen.has(next.id)) continue;
-      seen.add(next.id);
-      result.push(next);
-      added = true;
-    }
-    for (const [key, list] of buckets) {
-      if (order.includes(key) || !list.length) continue;
-      const next = list.shift()!;
-      if (seen.has(next.id)) continue;
-      seen.add(next.id);
-      result.push(next);
-      added = true;
-    }
-  }
-
-  return result;
+  return flow
+    .filter((article) => {
+      if (seen.has(article.id)) return false;
+      seen.add(article.id);
+      return true;
+    })
+    .slice(0, NEWS_POOL_SIZE);
 }
 
 export function hasGNewsApi(): boolean {
@@ -2076,7 +2082,14 @@ export async function getNewsSnapshot(
 
   const toSnapshot = async (entry: NewsCacheEntry): Promise<NewsSnapshot> => {
     const editorial = getPublishedAdminNews(topic);
-    let merged = dedupeArticles([...editorial, ...entry.articles]);
+    let merged = dedupeArticles([...editorial, ...entry.articles]).sort(
+      (a, b) => articleTime(b) - articleTime(a)
+    );
+
+    // Keep Europe homepage as a newest-first river after editorial merge.
+    if (topic === "european-leagues") {
+      merged = balanceEuropeanLeagueMix(merged);
+    }
 
     // Homepage Europe cards are mostly Google News — resolve thumbs quickly.
     if (
@@ -2090,7 +2103,12 @@ export async function getNewsSnapshot(
         2800,
         top
       );
-      merged = [...imagedTop, ...merged.slice(topCount)];
+      // Preserve newest-first order — do not reshuffle after image enrich.
+      const imagedById = new Map(imagedTop.map((article) => [article.id, article]));
+      merged = [
+        ...top.map((article) => imagedById.get(article.id) ?? article),
+        ...merged.slice(topCount),
+      ];
     }
 
     return {

@@ -351,11 +351,17 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     );
   }
 
-  // Prefer written news for the homepage hero; keep videos in the lower grid only.
-  const newsStories = articles.filter((article) => !article.videoUrl);
-  const videoStories = articles.filter((article) => Boolean(article.videoUrl));
+  // Newest first — written stories lead, videos trail (same river as before).
+  const byNewest = (a: NewsArticle, b: NewsArticle) =>
+    new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+  const newsStories = articles
+    .filter((article) => !article.videoUrl)
+    .sort(byNewest);
+  const videoStories = articles
+    .filter((article) => Boolean(article.videoUrl))
+    .sort(byNewest);
   const ordered =
-    newsStories.length > 0 ? [...newsStories, ...videoStories] : articles;
+    newsStories.length > 0 ? [...newsStories, ...videoStories] : [...articles].sort(byNewest);
   const [hero, ...rest] = ordered;
   const newsSecondary = rest.filter((article) => !article.videoUrl).slice(0, 3);
   const secondary =
