@@ -1003,67 +1003,57 @@ svg {
 
 .statistics-float {
   position: fixed;
-  right: 0.95rem;
-  bottom: 7.6rem;
+  right: 0.85rem;
+  bottom: 7.4rem;
   z-index: 45;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.45rem 0.5rem 0.4rem;
-  border-radius: 1.15rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(7, 6, 15, 0.88);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(12px);
-  transition:
-    transform 220ms ease,
-    border-color 220ms ease,
-    box-shadow 220ms ease;
+  gap: 0.15rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: transform 220ms ease;
 }
 
 .statistics-float:hover,
 .statistics-float:focus-visible {
-  transform: translateY(-3px) scale(1.04);
-  border-color: rgba(0, 255, 135, 0.45);
-  box-shadow: 0 16px 40px rgba(0, 255, 135, 0.18);
+  transform: translateY(-3px) scale(1.06);
 }
 
 .statistics-float__img {
   display: block;
-  height: 2.65rem;
-  width: 2.65rem;
+  height: 3.1rem;
+  width: 3.1rem;
   object-fit: contain;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45));
 }
 
 .statistics-float__label {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
 }
 
 @media (min-width: 640px) {
   .statistics-float {
-    right: 1.35rem;
-    bottom: 9.25rem;
+    right: 1.25rem;
+    bottom: 9rem;
   }
 
   .statistics-float__img {
-    height: 3rem;
-    width: 3rem;
+    height: 3.45rem;
+    width: 3.45rem;
   }
 }
 
-html[data-theme="light"] .statistics-float {
-  border-color: rgba(55, 0, 60, 0.12);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 32px rgba(55, 0, 60, 0.14);
-}
-
 html[data-theme="light"] .statistics-float__label {
-  color: rgba(55, 0, 60, 0.7);
+  color: rgba(55, 0, 60, 0.78);
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.7);
 }
 
 .football-assistant__peek {
