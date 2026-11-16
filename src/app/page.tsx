@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { HomeHeroHeadline } from "@/components/home-hero-headline";
 import { HomeJsonLd } from "@/components/json-ld";
 import { HomeNews } from "@/components/home-news";
 import { HomeQuickNav } from "@/components/home-quick-nav";
 import { JantaAdvert } from "@/components/janta-advert";
-import { LeagueNewsPicker } from "@/components/league-news-picker";
 import { MatchList } from "@/components/match-card";
 import { NewsFeed } from "@/components/news-feed";
-import { NewsSourceBadge } from "@/components/news-source-badge";
 import { SectionHeader } from "@/components/section-header";
 import { StandingsTable } from "@/components/standings-table";
 import { getMatchBoard, getStandings } from "@/lib/football-api";
@@ -103,10 +100,6 @@ export default async function HomePage() {
       </section>
 
       <main className="home-main mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
-        <Suspense fallback={null}>
-          <LeagueNewsPicker active="european-leagues" />
-        </Suspense>
-        <NewsSourceBadge topic="european-leagues" />
         <HomeNews initialArticles={europeNews} limit={12} />
 
         <section className="home-section home-section--kenya mt-14 sm:mt-16 lg:mt-20">
