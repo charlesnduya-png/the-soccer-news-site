@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import { NewsArticleImage } from "@/components/news-article-image";
 import type { NewsArticle } from "@/lib/types";
@@ -22,15 +22,17 @@ export function TransfersFeed({
   const [articles, setArticles] = useState<NewsArticle[]>(initialArticles);
   const [loading, setLoading] = useState(initialArticles.length === 0);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const seededFromServer = useRef(initialArticles.length > 0);
 
   useEffect(() => {
-    if (initialArticles.length > 0) {
-      setArticles(initialArticles);
-      setLoading(false);
-    }
+    if (seededFromServer.current) return;
+    if (initialArticles.length === 0) return;
+    seededFromServer.current = true;
+    setArticles(initialArticles);
+    setLoading(false);
   }, [initialArticles]);
 
-  useLiveRefresh<{
+  const { updatedAt: polledAt } = useLiveRefresh<{
     articles: NewsArticle[];
     fetchedAt?: string;
     isFallback?: boolean;
@@ -59,6 +61,8 @@ export function TransfersFeed({
       setUpdatedAt(data.fetchedAt ?? new Date().toISOString());
     },
   });
+
+  const displayUpdatedAt = polledAt ?? updatedAt;
 
   if (loading && articles.length === 0) {
     return (
@@ -93,7 +97,7 @@ export function TransfersFeed({
         </span>
         <span className="text-white/40">
           Auto-updates every 2 minutes
-          {updatedAt ? ` · last ${formatNewsDate(updatedAt)}` : ""}
+          {displayUpdatedAt ? ` · last ${formatNewsDate(displayUpdatedAt)}` : ""}
         </span>
       </div>
 

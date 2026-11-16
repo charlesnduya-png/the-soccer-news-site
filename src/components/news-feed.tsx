@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NewsArticle } from "@/lib/types";
 import type { NewsTopic } from "@/lib/news-api";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
@@ -35,20 +35,22 @@ export function NewsFeed({
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [degraded, setDegraded] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
+  const seededFromServer = useRef(initialArticles.length > 0);
 
   useEffect(() => {
-    if (initialArticles.length > 0) {
-      setArticles(initialArticles);
-      setLoading(false);
-    }
+    if (seededFromServer.current) return;
+    if (initialArticles.length === 0) return;
+    seededFromServer.current = true;
+    setArticles(initialArticles);
+    setLoading(false);
   }, [initialArticles]);
 
-  const { error } = useLiveRefresh<NewsResponse>({
+  const { error, updatedAt: polledAt } = useLiveRefresh<NewsResponse>({
     url: `/api/news?limit=${limit}&topic=${topic}`,
     intervalMs: REFRESH_MS,
     immediate: initialArticles.length === 0,
     onData: (data) => {
-      setFetchedAt(data.fetchedAt ?? null);
+      setFetchedAt(data.fetchedAt ?? new Date().toISOString());
       setLoading(false);
 
       if (!data.articles?.length) {
@@ -131,8 +133,8 @@ export function NewsFeed({
             ? ` · ${articles.filter((a) => a.videoUrl).length} with video`
             : ""}{" "}
           from {sourceCount || "multiple"} sources · auto-updates every 2 min
-          {fetchedAt
-            ? ` · refreshed ${new Date(fetchedAt).toLocaleTimeString([], {
+          {polledAt || fetchedAt
+            ? ` · refreshed ${new Date(polledAt ?? fetchedAt!).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               })}`

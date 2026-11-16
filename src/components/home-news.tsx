@@ -224,12 +224,16 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
   const [loading, setLoading] = useState(initialArticles.length === 0);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const imagePrefetchDone = useRef(new Set<string>());
+  const seededFromServer = useRef(initialArticles.length > 0);
 
+  // Seed once from SSR. Do not re-apply on every router.refresh() — that was
+  // overwriting the 2-minute client poll with the same ISR snapshot.
   useEffect(() => {
-    if (initialArticles.length > 0) {
-      setArticles(initialArticles);
-      setLoading(false);
-    }
+    if (seededFromServer.current) return;
+    if (initialArticles.length === 0) return;
+    seededFromServer.current = true;
+    setArticles(initialArticles);
+    setLoading(false);
   }, [initialArticles]);
 
   // Prefetch missing Google News thumbnails for visible homepage cards.
@@ -273,7 +277,7 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     };
   }, [articles]);
 
-  useLiveRefresh<{
+  const { updatedAt: polledAt } = useLiveRefresh<{
     articles: NewsArticle[];
     fetchedAt?: string;
     isFallback?: boolean;
@@ -283,7 +287,7 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     intervalMs: 2 * 60 * 1000,
     immediate: initialArticles.length === 0,
     onData: (data) => {
-      setFetchedAt(data.fetchedAt ?? null);
+      setFetchedAt(data.fetchedAt ?? new Date().toISOString());
       setLoading(false);
 
       if (!data.articles?.length) return;
@@ -381,8 +385,8 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
           </span>
           <span className="home-news__badge home-news__badge--muted">
             Auto-updates · 2 min
-            {fetchedAt
-              ? ` · ${new Date(fetchedAt).toLocaleTimeString([], {
+            {polledAt || fetchedAt
+              ? ` · ${new Date(polledAt ?? fetchedAt!).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}`
