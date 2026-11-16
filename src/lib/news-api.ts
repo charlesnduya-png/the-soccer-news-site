@@ -1449,31 +1449,8 @@ function preferArticlesWithImages(articles: NewsArticle[]): NewsArticle[] {
   });
 }
 
-/** Map an article into a league bucket for the Europe home mix. */
-function europeanLeagueBucket(article: NewsArticle): string {
-  if (article.source.startsWith("Google News · ")) {
-    return article.source.replace("Google News · ", "");
-  }
-  if (
-    article.source.includes("PL") ||
-    article.source.includes("Premier") ||
-    article.source === "BBC Sport" ||
-    article.source === "ESPN Soccer"
-  ) {
-    return "Premier League";
-  }
-  for (const league of LEAGUE_NEWS_CONFIG) {
-    if (matchesLeagueArticle(article.title, article.description, league.slug)) {
-      return league.name;
-    }
-  }
-  return "Europe";
-}
-
 /** Drop stale Europe fillers so home always reads as a live news river. */
 const EUROPE_HOME_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
-/** Soft diversity: avoid one league monopolising the first screen. */
-const EUROPE_TOP_PER_LEAGUE = 3;
 
 function articleTime(article: NewsArticle): number {
   const value = new Date(article.pubDate).getTime();
@@ -1481,8 +1458,8 @@ function articleTime(article: NewsArticle): number {
 }
 
 /**
- * Homepage Europe flow: newest first (like the earlier live river), with light
- * league variety among recent stories — never promote months-old league fillers.
+ * Aug 20 hosting zip flow: newest stories first, then the rest down the page.
+ * No league round-robin — that was pushing old fillers above fresh news.
  */
 function balanceEuropeanLeagueMix(articles: NewsArticle[]): NewsArticle[] {
   const now = Date.now();
@@ -1490,38 +1467,8 @@ function balanceEuropeanLeagueMix(articles: NewsArticle[]): NewsArticle[] {
     (article) => now - articleTime(article) <= EUROPE_HOME_MAX_AGE_MS
   );
   const pool = fresh.length >= 8 ? fresh : articles;
-
-  const byNewest = [...pool].sort((a, b) => articleTime(b) - articleTime(a));
-
-  // Written news leads; video clips trail so the river stays story-first.
-  const written = byNewest.filter((article) => !article.videoUrl);
-  const videos = byNewest.filter((article) => Boolean(article.videoUrl));
-
-  const selected: NewsArticle[] = [];
-  const deferred: NewsArticle[] = [];
-  const leagueCounts = new Map<string, number>();
-
-  for (const article of written) {
-    const league = europeanLeagueBucket(article);
-    const count = leagueCounts.get(league) ?? 0;
-    // Only soft-cap while filling the first homepage screen.
-    if (count >= EUROPE_TOP_PER_LEAGUE && selected.length < 12) {
-      deferred.push(article);
-      continue;
-    }
-    leagueCounts.set(league, count + 1);
-    selected.push(article);
-  }
-
-  // Deferred items stay newest-first after the diversified top.
-  const flow = [...selected, ...deferred, ...videos];
-  const seen = new Set<string>();
-  return flow
-    .filter((article) => {
-      if (seen.has(article.id)) return false;
-      seen.add(article.id);
-      return true;
-    })
+  return [...pool]
+    .sort((a, b) => articleTime(b) - articleTime(a))
     .slice(0, NEWS_POOL_SIZE);
 }
 

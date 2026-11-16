@@ -285,7 +285,8 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
   }>({
     url: `/api/news?limit=${limit}&topic=european-leagues`,
     intervalMs: 2 * 60 * 1000,
-    immediate: initialArticles.length === 0,
+    // Same as the Aug 20 zip: keep polling so the river keeps moving.
+    immediate: true,
     onData: (data) => {
       setFetchedAt(data.fetchedAt ?? new Date().toISOString());
       setLoading(false);
@@ -315,7 +316,9 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
             )
             .map((article) => [article.link, article.image as string])
         );
-        const next = data.articles.map((article) => {
+
+        // Keep API newest-first order (Aug 20 river), only patch missing images.
+        return data.articles.map((article) => {
           if (article.image && !isFragileNewsImage(article.image)) {
             return article;
           }
@@ -323,18 +326,6 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
             previousById.get(article.id) ?? previousByLink.get(article.link);
           return image ? { ...article, image } : article;
         });
-
-        const nextImaged = next.filter(
-          (article) => article.image && !isFragileNewsImage(article.image)
-        ).length;
-        const currentImaged = current.filter(
-          (article) => article.image && !isFragileNewsImage(article.image)
-        ).length;
-        if (current.length > 0 && currentImaged >= 3 && nextImaged === 0) {
-          return current;
-        }
-
-        return next;
       });
     },
   });
@@ -351,27 +342,10 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
     );
   }
 
-  // Newest first — written stories lead, videos trail (same river as before).
-  const byNewest = (a: NewsArticle, b: NewsArticle) =>
-    new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
-  const newsStories = articles
-    .filter((article) => !article.videoUrl)
-    .sort(byNewest);
-  const videoStories = articles
-    .filter((article) => Boolean(article.videoUrl))
-    .sort(byNewest);
-  const ordered =
-    newsStories.length > 0 ? [...newsStories, ...videoStories] : [...articles].sort(byNewest);
-  const [hero, ...rest] = ordered;
-  const newsSecondary = rest.filter((article) => !article.videoUrl).slice(0, 3);
-  const secondary =
-    newsSecondary.length > 0
-      ? newsSecondary
-      : rest.slice(0, 3);
-  const usedIds = new Set([hero.id, ...secondary.map((article) => article.id)]);
-  const features = ordered
-    .filter((article) => !usedIds.has(article.id))
-    .slice(0, Math.max(0, limit - 1 - secondary.length));
+  // Aug 20 layout: API order is already newest → older down the page.
+  const [hero, ...rest] = articles;
+  const secondary = rest.slice(0, 3);
+  const features = rest.slice(3, Math.max(3, limit - 1));
 
   return (
     <section className="home-news" aria-label="European football news">
