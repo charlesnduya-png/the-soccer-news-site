@@ -1004,7 +1004,7 @@ svg {
 .statistics-float {
   position: fixed;
   right: 0.85rem;
-  bottom: 7.4rem;
+  bottom: 7.6rem;
   z-index: 45;
   display: inline-flex;
   flex-direction: column;
@@ -1041,13 +1041,13 @@ svg {
 
 @media (min-width: 640px) {
   .statistics-float {
-    right: 1.25rem;
-    bottom: 9rem;
+    right: 1.2rem;
+    bottom: 9.25rem;
   }
 
   .statistics-float__img {
-    height: 3.45rem;
-    width: 3.45rem;
+    height: 3.5rem;
+    width: 3.5rem;
   }
 }
 
