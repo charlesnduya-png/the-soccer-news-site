@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HomeHeroHeadline } from "@/components/home-hero-headline";
+import { HomeHotTopics } from "@/components/home-hot-topics";
 import { HomeJsonLd } from "@/components/json-ld";
 import { HomeNews } from "@/components/home-news";
 import { HomeQuickNav } from "@/components/home-quick-nav";
@@ -100,6 +101,7 @@ export default async function HomePage() {
       </section>
 
       <main className="home-main mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+        <HomeHotTopics />
         <HomeNews initialArticles={europeNews} limit={12} />
 
         <section className="home-section home-section--kenya mt-14 sm:mt-16 lg:mt-20">
