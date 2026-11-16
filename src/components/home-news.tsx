@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import { NewsArticleImage } from "@/components/news-article-image";
+import {
+  isFragileNewsImage,
+  resolveNewsImageClient,
+} from "@/lib/news-image-loader";
 import type { NewsArticle } from "@/lib/types";
 import {
   toVideoEmbed,
@@ -219,6 +223,7 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
   const [articles, setArticles] = useState<NewsArticle[]>(initialArticles);
   const [loading, setLoading] = useState(initialArticles.length === 0);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const imagePrefetchDone = useRef(new Set<string>());
 
   useEffect(() => {
     if (initialArticles.length > 0) {
@@ -226,6 +231,47 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
       setLoading(false);
     }
   }, [initialArticles]);
+
+  // Prefetch missing Google News thumbnails for visible homepage cards.
+  useEffect(() => {
+    const missing = articles
+      .filter(
+        (article) =>
+          !imagePrefetchDone.current.has(article.id) &&
+          article.link.startsWith("http") &&
+          (!article.image || isFragileNewsImage(article.image))
+      )
+      .slice(0, 12);
+
+    if (missing.length === 0) return;
+    for (const article of missing) {
+      imagePrefetchDone.current.add(article.id);
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      missing.map(async (article) => {
+        const image = await resolveNewsImageClient({
+          link: article.link,
+          articleId: article.id,
+          existingImage: article.image,
+        });
+        if (cancelled || !image) return;
+        setArticles((current) =>
+          current.map((item) =>
+            item.id === article.id &&
+            (!item.image || isFragileNewsImage(item.image))
+              ? { ...item, image }
+              : item
+          )
+        );
+      })
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [articles]);
 
   useLiveRefresh<{
     articles: NewsArticle[];
@@ -251,23 +297,35 @@ export function HomeNews({ initialArticles = [], limit = 12 }: HomeNewsProps) {
         // Carry forward thumbnails when a refresh briefly returns image-less cards.
         const previousById = new Map(
           current
-            .filter((article) => article.image)
+            .filter(
+              (article) =>
+                article.image && !isFragileNewsImage(article.image)
+            )
             .map((article) => [article.id, article.image as string])
         );
         const previousByLink = new Map(
           current
-            .filter((article) => article.image)
+            .filter(
+              (article) =>
+                article.image && !isFragileNewsImage(article.image)
+            )
             .map((article) => [article.link, article.image as string])
         );
         const next = data.articles.map((article) => {
-          if (article.image) return article;
+          if (article.image && !isFragileNewsImage(article.image)) {
+            return article;
+          }
           const image =
             previousById.get(article.id) ?? previousByLink.get(article.link);
           return image ? { ...article, image } : article;
         });
 
-        const nextImaged = next.filter((article) => article.image).length;
-        const currentImaged = current.filter((article) => article.image).length;
+        const nextImaged = next.filter(
+          (article) => article.image && !isFragileNewsImage(article.image)
+        ).length;
+        const currentImaged = current.filter(
+          (article) => article.image && !isFragileNewsImage(article.image)
+        ).length;
         if (current.length > 0 && currentImaged >= 3 && nextImaged === 0) {
           return current;
         }

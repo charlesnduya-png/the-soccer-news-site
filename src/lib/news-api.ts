@@ -789,11 +789,25 @@ function isGenericNewsImage(url?: string): boolean {
   );
 }
 
+function isFragileExternalNewsImage(url?: string): boolean {
+  if (!url) return true;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes("news.google.com") ||
+    lower.includes("encrypted-tbn") ||
+    lower.includes("gstatic.com/images") ||
+    lower.includes("googleusercontent.com/news") ||
+    lower.includes("lh3.googleusercontent.com")
+  );
+}
+
 function isUsableNewsImage(url?: string): boolean {
   if (!url) return false;
   // Admin-uploaded covers are served from our own media route.
   if (url.startsWith("/api/admin/media/")) return true;
-  return url.startsWith("http") && !isGenericNewsImage(url);
+  if (!url.startsWith("http")) return false;
+  if (isFragileExternalNewsImage(url)) return false;
+  return !isGenericNewsImage(url);
 }
 
 async function decodeGoogleNewsLink(url: string): Promise<string | undefined> {
@@ -1750,7 +1764,9 @@ export async function resolveNewsArticleImage(
   link: string,
   existing?: string
 ): Promise<string | undefined> {
-  if (isUsableNewsImage(existing)) return existing;
+  if (isUsableNewsImage(existing) && !isFragileExternalNewsImage(existing)) {
+    return existing;
+  }
   if (!link.startsWith("http")) return undefined;
 
   const cachedDetails = articleDetailsCache.get(link);
@@ -1763,6 +1779,37 @@ export async function resolveNewsArticleImage(
 
   const details = await fetchPublisherDetails(link, resolved);
   return isUsableNewsImage(details.image) ? details.image : undefined;
+}
+
+/** Fill missing thumbnails for the first N homepage cards (bounded). */
+export async function ensureHomepageImages(
+  articles: NewsArticle[],
+  maxLookups = 8
+): Promise<NewsArticle[]> {
+  const missing = articles
+    .map((article, index) => ({ article, index }))
+    .filter(
+      ({ article }) =>
+        !isUsableNewsImage(article.image) && article.link.startsWith("http")
+    )
+    .slice(0, maxLookups);
+
+  if (missing.length === 0) return articles;
+
+  const next = articles.map((article) => ({ ...article }));
+  await Promise.all(
+    missing.map(async ({ article, index }) => {
+      try {
+        const image = await resolveNewsArticleImage(article.link, article.image);
+        if (!image) return;
+        next[index] = { ...article, image };
+        attachResolvedArticleImage(article.id, article.link, image);
+      } catch {
+        // best-effort
+      }
+    })
+  );
+  return next;
 }
 
 /** Persist a newly resolved image onto the in-memory article caches. */
@@ -2011,9 +2058,25 @@ export async function getNewsSnapshot(
   const safeLimit = Math.min(Math.max(Math.trunc(limit) || DEFAULT_LIMIT, 1), 50);
   const cached = newsCache.get(topic);
 
-  const toSnapshot = (entry: NewsCacheEntry): NewsSnapshot => {
+  const toSnapshot = async (entry: NewsCacheEntry): Promise<NewsSnapshot> => {
     const editorial = getPublishedAdminNews(topic);
-    const merged = dedupeArticles([...editorial, ...entry.articles]);
+    let merged = dedupeArticles([...editorial, ...entry.articles]);
+
+    // Homepage Europe cards are mostly Google News — resolve thumbs quickly.
+    if (
+      (topic === "european-leagues" || topic === "all") &&
+      merged.slice(0, safeLimit).some((article) => !isUsableNewsImage(article.image))
+    ) {
+      const topCount = Math.max(safeLimit, 12);
+      const top = merged.slice(0, topCount);
+      const imagedTop = await withSoftTimeout(
+        ensureHomepageImages(top, 10),
+        2800,
+        top
+      );
+      merged = [...imagedTop, ...merged.slice(topCount)];
+    }
+
     return {
       articles: merged.slice(0, safeLimit),
       fetchedAt: entry.fetchedAt,

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   NEWS_IMAGE_PLACEHOLDER,
   cacheResolvedNewsImage,
   getCachedResolvedNewsImage,
+  isFragileNewsImage,
   newsImageCandidates,
+  resolveNewsImageClient,
 } from "@/lib/news-image-loader";
 
 type NewsArticleImageProps = {
@@ -30,40 +32,51 @@ export function NewsArticleImage({
 }: NewsArticleImageProps) {
   const cacheKey = articleId || articleLink || src || "";
   const cached = cacheKey ? getCachedResolvedNewsImage(cacheKey) : undefined;
-  const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(
-    src || cached
-  );
+  const initial = cached || (src && !isFragileNewsImage(src) ? src : undefined);
+  const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(initial);
   const [resolving, setResolving] = useState(false);
   const [index, setIndex] = useState(0);
+  const resolveAttemptKey = useRef<string>("");
 
   useEffect(() => {
-    setResolvedSrc(src || (cacheKey ? getCachedResolvedNewsImage(cacheKey) : undefined));
+    const nextCached = cacheKey
+      ? getCachedResolvedNewsImage(cacheKey)
+      : undefined;
+    setResolvedSrc(
+      nextCached || (src && !isFragileNewsImage(src) ? src : undefined)
+    );
     setIndex(0);
+    resolveAttemptKey.current = "";
   }, [src, cacheKey]);
 
-  // Inbuilt loader: when RSS/GNews left the card without an image, resolve one.
+  // Resolve publisher thumbnails for missing / fragile RSS images (esp. Google News).
   useEffect(() => {
-    if (src || !articleLink?.startsWith("http")) return;
-    if (cacheKey && getCachedResolvedNewsImage(cacheKey)) return;
+    if (!articleLink?.startsWith("http")) return;
 
+    const attemptKey = `${cacheKey}|${src ?? ""}`;
+    if (resolveAttemptKey.current === attemptKey) return;
+
+    const hasGoodSrc = Boolean(src && !isFragileNewsImage(src));
+    const hasCached = Boolean(cacheKey && getCachedResolvedNewsImage(cacheKey));
+    if (hasGoodSrc || hasCached) {
+      resolveAttemptKey.current = attemptKey;
+      return;
+    }
+
+    resolveAttemptKey.current = attemptKey;
     let cancelled = false;
-    const controller = new AbortController();
 
     async function loadImage() {
       setResolving(true);
       try {
-        const params = new URLSearchParams({ link: articleLink as string });
-        if (articleId) params.set("id", articleId);
-
-        const res = await fetch(`/api/news-image?${params.toString()}`, {
-          signal: controller.signal,
+        const image = await resolveNewsImageClient({
+          link: articleLink as string,
+          articleId,
+          existingImage: src,
         });
-        if (!res.ok) return;
-        const data = (await res.json()) as { image?: string | null };
-        if (cancelled || !data.image) return;
-
-        if (cacheKey) cacheResolvedNewsImage(cacheKey, data.image);
-        setResolvedSrc(data.image);
+        if (cancelled || !image) return;
+        if (cacheKey) cacheResolvedNewsImage(cacheKey, image);
+        setResolvedSrc(image);
         setIndex(0);
       } catch {
         // Keep placeholder — loader is best-effort.
@@ -76,7 +89,6 @@ export function NewsArticleImage({
 
     return () => {
       cancelled = true;
-      controller.abort();
     };
   }, [articleLink, articleId, src, cacheKey]);
 
@@ -86,10 +98,30 @@ export function NewsArticleImage({
   );
 
   const advance = () => {
-    setIndex((value) => Math.min(value + 1, candidates.length - 1));
+    setIndex((value) => {
+      const next = Math.min(value + 1, candidates.length - 1);
+      const atPlaceholder =
+        next === candidates.length - 1 &&
+        candidates[next] === NEWS_IMAGE_PLACEHOLDER;
+
+      if (atPlaceholder && articleLink?.startsWith("http")) {
+        void resolveNewsImageClient({
+          link: articleLink,
+          articleId,
+          existingImage: src,
+        }).then((image) => {
+          if (!image) return;
+          if (cacheKey) cacheResolvedNewsImage(cacheKey, image);
+          setResolvedSrc(image);
+          setIndex(0);
+        });
+      }
+      return next;
+    });
   };
 
-  const currentSrc = candidates[Math.min(index, candidates.length - 1)] ?? NEWS_IMAGE_PLACEHOLDER;
+  const currentSrc =
+    candidates[Math.min(index, candidates.length - 1)] ?? NEWS_IMAGE_PLACEHOLDER;
 
   return (
     <span className="news-article-image relative block h-full w-full overflow-hidden bg-[#120c1c]">
@@ -114,7 +146,7 @@ export function NewsArticleImage({
           }
         }}
       />
-      {resolving && !resolvedSrc ? (
+      {resolving && (!resolvedSrc || currentSrc === NEWS_IMAGE_PLACEHOLDER) ? (
         <span
           className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-white/5 via-transparent to-[#00ff87]/10"
           aria-hidden
@@ -129,14 +161,14 @@ export function resolveNewsImage(
   videoUrl?: string,
   fallbackImage?: string
 ): string | undefined {
-  if (image) return image;
-  if (fallbackImage) return fallbackImage;
+  if (image && !isFragileNewsImage(image)) return image;
+  if (fallbackImage && !isFragileNewsImage(fallbackImage)) return fallbackImage;
   if (videoUrl) {
     const match = videoUrl.match(
       /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/i
     );
     if (match?.[1]) {
-      return `https://i.ytimg.com/vi/${match[1]}/mqdefault.jpg`;
+      return `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`;
     }
   }
   return undefined;

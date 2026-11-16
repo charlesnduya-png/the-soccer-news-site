@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
-export const maxDuration = 15;
+export const dynamic = "force-dynamic";
+export const maxDuration = 20;
 
 const MEMORY_TTL_MS = 1000 * 60 * 30;
-const MEMORY_MAX = 120;
+const MEMORY_MAX = 160;
 
 type CachedImage = {
   body: ArrayBuffer;
@@ -24,7 +25,6 @@ function isPrivateHostname(hostname: string): boolean {
     return true;
   }
 
-  // Block obvious IPv4 private / loopback / link-local ranges.
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
     const parts = ipv4.slice(1).map(Number);
@@ -42,7 +42,7 @@ function isPrivateHostname(hostname: string): boolean {
 function isAllowedImageUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
     if (isPrivateHostname(parsed.hostname)) return false;
     return true;
   } catch {
@@ -55,6 +55,60 @@ function remember(url: string, entry: CachedImage) {
   if (memoryCache.size <= MEMORY_MAX) return;
   const first = memoryCache.keys().next().value;
   if (first) memoryCache.delete(first);
+}
+
+async function fetchImageBytes(rawUrl: string): Promise<{
+  body: ArrayBuffer;
+  type: string;
+} | null> {
+  const origin = new URL(rawUrl).origin;
+  const attempts: Array<Record<string, string>> = [
+    {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      Referer: `${origin}/`,
+      "Accept-Language": "en-GB,en;q=0.9",
+    },
+    {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    },
+  ];
+
+  for (const headers of attempts) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      const res = await fetch(rawUrl, {
+        signal: controller.signal,
+        headers,
+        redirect: "follow",
+        cache: "force-cache",
+      });
+      if (!res.ok) continue;
+
+      const contentType = res.headers.get("content-type") ?? "image/jpeg";
+      if (!contentType.startsWith("image/") && !contentType.includes("octet-stream")) {
+        continue;
+      }
+
+      const buffer = await res.arrayBuffer();
+      if (buffer.byteLength < 64) continue;
+
+      return {
+        body: buffer,
+        type: contentType.startsWith("image/") ? contentType : "image/jpeg",
+      };
+    } catch {
+      // try next header profile
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -77,54 +131,23 @@ export async function GET(request: Request) {
     });
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7000);
-
-  try {
-    const origin = new URL(rawUrl).origin;
-    const res = await fetch(rawUrl, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-        Referer: `${origin}/`,
-      },
-      redirect: "follow",
-      next: { revalidate: 60 * 60 * 24 * 7 },
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ error: "Image unavailable" }, { status: 404 });
-    }
-
-    const contentType = res.headers.get("content-type") ?? "image/jpeg";
-    if (!contentType.startsWith("image/")) {
-      return NextResponse.json({ error: "Not an image" }, { status: 415 });
-    }
-
-    const buffer = await res.arrayBuffer();
-    if (buffer.byteLength < 32) {
-      return NextResponse.json({ error: "Image too small" }, { status: 415 });
-    }
-
-    remember(rawUrl, {
-      body: buffer,
-      type: contentType,
-      expiresAt: Date.now() + MEMORY_TTL_MS,
-    });
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control":
-          "public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000",
-        "X-Image-Cache": "MISS",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "Image fetch failed" }, { status: 502 });
-  } finally {
-    clearTimeout(timer);
+  const fetched = await fetchImageBytes(rawUrl);
+  if (!fetched) {
+    return NextResponse.json({ error: "Image unavailable" }, { status: 404 });
   }
+
+  remember(rawUrl, {
+    body: fetched.body,
+    type: fetched.type,
+    expiresAt: Date.now() + MEMORY_TTL_MS,
+  });
+
+  return new NextResponse(fetched.body, {
+    headers: {
+      "Content-Type": fetched.type,
+      "Cache-Control":
+        "public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000",
+      "X-Image-Cache": "MISS",
+    },
+  });
 }
