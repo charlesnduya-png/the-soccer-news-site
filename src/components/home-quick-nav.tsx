@@ -24,14 +24,15 @@ const linkIcons: Record<string, ReactNode> = {
     </svg>
   ),
   Statistics: (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden>
-      <path
-        d="M5 14V9M10 14V6M15 14v-4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/statistics-tv.png"
+      alt=""
+      width={20}
+      height={20}
+      className="home-quick-nav__icon-img h-5 w-5 object-contain"
+      aria-hidden
+    />
   ),
   News: (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden>

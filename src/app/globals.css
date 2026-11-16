@@ -460,7 +460,17 @@ svg {
   transition: opacity 0.2s ease;
 }
 
+.home-quick-nav__icon-img {
+  opacity: 1;
+  display: block;
+  flex-shrink: 0;
+}
+
 .home-quick-nav__link:hover .home-quick-nav__icon {
+  opacity: 1;
+}
+
+.home-quick-nav__link .home-quick-nav__icon:has(.home-quick-nav__icon-img) {
   opacity: 1;
 }
 
