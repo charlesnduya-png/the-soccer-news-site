@@ -86,9 +86,10 @@ function NavAnchor({
         <Image
           src={icon}
           alt=""
-          width={20}
-          height={20}
-          className="nav-link-icon h-5 w-5 shrink-0 object-contain"
+          width={24}
+          height={24}
+          className="nav-link-icon h-6 w-6 shrink-0 object-contain"
+          unoptimized
           aria-hidden="true"
         />
       ) : null}
