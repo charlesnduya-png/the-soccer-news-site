@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import { NewsArticleImage } from "@/components/news-article-image";
+import { NewsVideoCardMedia } from "@/components/news-video-card-media";
 import {
   isFragileNewsImage,
   resolveNewsImageClient,
@@ -74,11 +75,38 @@ function FeaturedHero({ article }: { article: NewsArticle }) {
     ? videoDescription(article.title, article.source, article.description)
     : article.description;
 
+  if (hasVideo && embed) {
+    return (
+      <article className="group relative flex min-h-[300px] flex-col overflow-hidden sm:min-h-[400px] lg:min-h-[460px]">
+        <div className="relative min-h-[220px] flex-1 sm:min-h-[280px]">
+          <NewsVideoCardMedia
+            embed={embed}
+            title={article.title}
+            poster={poster}
+            articleLink={article.link}
+            articleId={article.id}
+            priority
+            featured
+          />
+        </div>
+        <div className="relative border-t border-white/10 bg-[#0c0814]/95 p-5 sm:p-6">
+          <MetaRow article={article} hasVideo light />
+          <h2 className="max-w-3xl font-[family-name:var(--font-bebas)] text-3xl leading-[0.95] tracking-wide text-white sm:text-4xl lg:text-5xl">
+            {article.title}
+          </h2>
+          {description ? (
+            <p className="mt-2 max-w-2xl line-clamp-2 text-sm text-white/65">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <Link
-      href={hasVideo && article.videoUrl ? article.videoUrl : `/news/${article.id}`}
-      target={hasVideo ? "_blank" : undefined}
-      rel={hasVideo ? "noopener noreferrer" : undefined}
+      href={`/news/${article.id}`}
       className="group relative block min-h-[300px] overflow-hidden sm:min-h-[400px] lg:min-h-[460px]"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-[#37003c] to-[#07060f]">
@@ -93,7 +121,7 @@ function FeaturedHero({ article }: { article: NewsArticle }) {
       <div className="absolute inset-0 bg-gradient-to-r from-[#07060f]/45 via-transparent to-transparent" />
 
       <div className="relative flex h-full min-h-[300px] flex-col justify-end p-6 sm:min-h-[400px] sm:p-8 lg:min-h-[460px] lg:p-9">
-        <MetaRow article={article} hasVideo={hasVideo} light />
+        <MetaRow article={article} hasVideo={false} light />
         <h2 className="max-w-3xl font-[family-name:var(--font-bebas)] text-4xl leading-[0.95] tracking-wide text-white transition group-hover:text-[#00ff87] sm:text-5xl lg:text-6xl">
           {article.title}
         </h2>
@@ -103,9 +131,9 @@ function FeaturedHero({ article }: { article: NewsArticle }) {
           </p>
         ) : null}
         <span className="mt-5 inline-flex w-fit items-center gap-2 text-sm font-bold text-[#00ff87]">
-          {hasVideo ? "Watch video now" : "Read story"}
+          Read story
           <span aria-hidden className="transition group-hover:translate-x-0.5">
-            {hasVideo ? "↗" : "→"}
+            →
           </span>
         </span>
       </div>
@@ -122,11 +150,36 @@ function SecondaryStory({ article }: { article: NewsArticle }) {
     ? videoDescription(article.title, article.source, article.description)
     : article.description;
 
+  if (hasVideo && embed) {
+    return (
+      <article className="group grid grid-cols-[7.5rem_1fr] gap-3 overflow-hidden sm:grid-cols-[9rem_1fr] sm:gap-4">
+        <div className="relative aspect-[4/3] overflow-hidden bg-black">
+          <NewsVideoCardMedia
+            embed={embed}
+            title={article.title}
+            poster={poster}
+            articleLink={article.link}
+            articleId={article.id}
+          />
+        </div>
+        <div className="flex flex-col justify-center py-0.5">
+          <MetaRow article={article} hasVideo />
+          <h3 className="text-base font-bold leading-snug text-white sm:text-lg">
+            {article.title}
+          </h3>
+          {description ? (
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <Link
-      href={hasVideo && article.videoUrl ? article.videoUrl : `/news/${article.id}`}
-      target={hasVideo ? "_blank" : undefined}
-      rel={hasVideo ? "noopener noreferrer" : undefined}
+      href={`/news/${article.id}`}
       className="group grid grid-cols-[7.5rem_1fr] gap-3 overflow-hidden sm:grid-cols-[9rem_1fr] sm:gap-4"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#37003c] to-[#07060f]">
@@ -138,7 +191,7 @@ function SecondaryStory({ article }: { article: NewsArticle }) {
         <div className="absolute inset-0 bg-black/10 transition group-hover:bg-black/0" />
       </div>
       <div className="flex flex-col justify-center py-0.5">
-        <MetaRow article={article} hasVideo={hasVideo} />
+        <MetaRow article={article} hasVideo={false} />
         <h3 className="text-base font-bold leading-snug text-white transition group-hover:text-[#00ff87] sm:text-lg">
           {article.title}
         </h3>
@@ -161,11 +214,36 @@ function FeatureCard({ article }: { article: NewsArticle }) {
     ? videoDescription(article.title, article.source, article.description)
     : article.description;
 
+  if (hasVideo && embed) {
+    return (
+      <article className="group flex flex-col overflow-hidden rounded-xl border border-white/15 bg-[#0f0b18] transition hover:border-[#00ff87]/35">
+        <div className="relative aspect-video overflow-hidden bg-black">
+          <NewsVideoCardMedia
+            embed={embed}
+            title={article.title}
+            poster={poster}
+            articleLink={article.link}
+            articleId={article.id}
+          />
+        </div>
+        <div className="p-4 pt-3">
+          <MetaRow article={article} hasVideo />
+          <h3 className="text-lg font-bold leading-snug text-white">
+            {article.title}
+          </h3>
+          {description ? (
+            <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/50">
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <Link
-      href={hasVideo && article.videoUrl ? article.videoUrl : `/news/${article.id}`}
-      target={hasVideo ? "_blank" : undefined}
-      rel={hasVideo ? "noopener noreferrer" : undefined}
+      href={`/news/${article.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] transition hover:border-[#00ff87]/25 hover:bg-white/[0.04]"
     >
       <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-[#37003c] to-[#07060f]">
@@ -175,14 +253,9 @@ function FeatureCard({ article }: { article: NewsArticle }) {
           articleId={article.id}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#07060f]/60 via-transparent to-transparent" />
-        {hasVideo ? (
-          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 bg-[#00ff87] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#07060f]">
-            Watch
-          </span>
-        ) : null}
       </div>
       <div className="p-4 pt-3">
-        <MetaRow article={article} hasVideo={hasVideo} />
+        <MetaRow article={article} hasVideo={false} />
         <h3 className="text-lg font-bold leading-snug text-white transition group-hover:text-[#00ff87]">
           {article.title}
         </h3>

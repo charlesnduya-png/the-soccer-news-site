@@ -1380,7 +1380,7 @@ async function fetchYouTubeVideos(topic: NewsTopic): Promise<NewsArticle[]> {
         const raw = item as unknown as Record<string, unknown>;
         const image =
           extractImage(raw) ??
-          (videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : undefined);
+          (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : undefined);
 
         return makeArticle({
           title,

@@ -126,9 +126,8 @@ export function videoPosterUrl(
   if (!embed) return fallbackImage;
 
   if (embed.kind === "youtube") {
-    // mqdefault is reliable 16:9 (~320×180). maxresdefault is often missing and
-    // returns a tiny stub that forces client retries — slower first paint.
-    return `https://i.ytimg.com/vi/${embed.id}/mqdefault.jpg`;
+    // hqdefault matches the Aug 20 zip cards — sharper 16:9 poster for play UI.
+    return `https://i.ytimg.com/vi/${embed.id}/hqdefault.jpg`;
   }
   if (embed.kind === "dailymotion") {
     return `https://www.dailymotion.com/thumbnail/video/${embed.id}`;
