@@ -5,7 +5,13 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { LiveScoresNav } from "@/components/live-scores-nav";
 type NavItem =
-  | { href: string; label: string; external?: boolean; liveScores?: never }
+  | {
+      href: string;
+      label: string;
+      icon?: string;
+      external?: boolean;
+      liveScores?: never;
+    }
   | {
       label: string;
       icon?: string;
@@ -16,7 +22,7 @@ type NavItem =
 const navLinks: NavItem[] = [
   { href: "/fixtures", label: "Matches" },
   { href: "/standings", label: "Table" },
-  { href: "/scorers", label: "Statistics" },
+  { href: "/scorers", label: "Statistics", icon: "/statistics-tv.png" },
   { label: "Live Scores", liveScores: true, children: [] },
   { href: "/news", label: "News" },
   {
@@ -44,7 +50,7 @@ const mobileNavLinks: NavItem[] = [
   { href: "/news", label: "News" },
   { href: "/kenya-football", label: "Kenya" },
   { href: "/transfers", label: "Transfers" },
-  { href: "/scorers", label: "Stats" },
+  { href: "/scorers", label: "Stats", icon: "/statistics-tv.png" },
   { href: "/teams", label: "Clubs" },
 ];
 
@@ -64,23 +70,38 @@ const footerLinks = [
 function NavAnchor({
   href,
   label,
+  icon,
   external,
   className,
 }: {
   href: string;
   label: string;
+  icon?: string;
   external?: boolean;
   className: string;
 }) {
-  const content =
-    label === "News" ? (
-      <>
-        <span className="nav-news-link__dot" aria-hidden="true" />
-        {label}
-      </>
-    ) : (
-      label
-    );
+  const content = (
+    <>
+      {icon ? (
+        <Image
+          src={icon}
+          alt=""
+          width={20}
+          height={20}
+          className="nav-link-icon h-5 w-5 shrink-0 object-contain"
+          aria-hidden="true"
+        />
+      ) : null}
+      {label === "News" ? (
+        <>
+          <span className="nav-news-link__dot" aria-hidden="true" />
+          {label}
+        </>
+      ) : (
+        label
+      )}
+    </>
+  );
 
   if (external) {
     return (
@@ -88,7 +109,7 @@ function NavAnchor({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className={className}
+        className={`${className} inline-flex items-center gap-1.5`}
       >
         {content}
       </a>
@@ -96,7 +117,7 @@ function NavAnchor({
   }
 
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className={`${className} inline-flex items-center gap-1.5`}>
       {content}
     </Link>
   );
@@ -220,6 +241,7 @@ export function SiteHeader() {
                   key={item.label}
                   href={item.href}
                   label={item.label}
+                  icon={item.icon}
                   external={item.external}
                   className={`rounded-full px-3 py-2 text-sm font-medium transition hover:bg-white/10 hover:text-white ${
                     item.label === "Watch Live"
@@ -261,6 +283,7 @@ export function SiteHeader() {
               key={item.label}
               href={item.href}
               label={item.label}
+              icon={item.icon}
               external={item.external}
               className={`site-header__mobile-chip shrink-0 ${
                 item.label === "News"

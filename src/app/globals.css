@@ -723,6 +723,11 @@ svg {
   animation: home-news-dot-pulse 1.6s ease-in-out infinite;
 }
 
+.nav-link-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .nav-news-link {
   position: relative;
   display: inline-flex;

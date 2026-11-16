@@ -28,9 +28,9 @@ const linkIcons: Record<string, ReactNode> = {
     <img
       src="/statistics-tv.png"
       alt=""
-      width={20}
-      height={20}
-      className="home-quick-nav__icon-img h-5 w-5 object-contain"
+      width={22}
+      height={22}
+      className="home-quick-nav__icon-img h-[1.35rem] w-[1.35rem] object-contain"
       aria-hidden
     />
   ),
