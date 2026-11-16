@@ -790,7 +790,10 @@ function isGenericNewsImage(url?: string): boolean {
 }
 
 function isUsableNewsImage(url?: string): boolean {
-  return Boolean(url?.startsWith("http") && !isGenericNewsImage(url));
+  if (!url) return false;
+  // Admin-uploaded covers are served from our own media route.
+  if (url.startsWith("/api/admin/media/")) return true;
+  return url.startsWith("http") && !isGenericNewsImage(url);
 }
 
 async function decodeGoogleNewsLink(url: string): Promise<string | undefined> {

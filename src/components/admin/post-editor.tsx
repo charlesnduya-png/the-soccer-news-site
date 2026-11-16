@@ -1,15 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import {
-  ADMIN_POST_TOPIC_OPTIONS,
-} from "@/lib/admin-post-topics";
+import { useRef, useState } from "react";
+import { ADMIN_POST_TOPIC_OPTIONS } from "@/lib/admin-post-topics";
 import type { AdminPost, AdminPostStatus } from "@/lib/admin-store";
 import type { NewsTopic } from "@/lib/league-news-config";
 
 export function PostEditor({ post }: { post?: AdminPost }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(post?.title ?? "");
   const [body, setBody] = useState(post?.body ?? "");
   const [author, setAuthor] = useState(post?.author ?? "Admin");
@@ -17,12 +16,39 @@ export function PostEditor({ post }: { post?: AdminPost }) {
   const [topic, setTopic] = useState<NewsTopic>(
     post?.topic ?? "european-leagues"
   );
+  const [image, setImage] = useState<string | null>(post?.image ?? null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const selectedHint =
     ADMIN_POST_TOPIC_OPTIONS.find((option) => option.value === topic)?.hint ??
     "";
+
+  async function onPickImage(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json()) as { error?: string; url?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error || "Image upload failed.");
+        return;
+      }
+      setImage(data.url);
+    } catch {
+      setError("Could not upload image.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -33,7 +59,7 @@ export function PostEditor({ post }: { post?: AdminPost }) {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, author, status, topic }),
+        body: JSON.stringify({ title, body, author, status, topic, image }),
       });
       const data = (await res.json()) as { error?: string; post?: AdminPost };
       if (!res.ok || !data.post) {
@@ -64,6 +90,54 @@ export function PostEditor({ post }: { post?: AdminPost }) {
             required
           />
         </label>
+
+        <div className="sm:col-span-2">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+            Cover image
+          </span>
+          <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/25">
+            {image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={image}
+                alt="Post cover preview"
+                className="aspect-[16/9] w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[16/9] items-center justify-center text-sm text-white/40">
+                No image yet — upload a JPG, PNG, WEBP, or GIF
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+              className="rounded-full bg-[#00ff87] px-4 py-2 text-sm font-bold text-[#07060f] transition hover:bg-[#7dffb8] disabled:opacity-50"
+            >
+              {uploading ? "Uploading…" : image ? "Change image" : "Upload image"}
+            </button>
+            {image ? (
+              <button
+                type="button"
+                onClick={() => setImage(null)}
+                className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-red-400/40 hover:text-red-200"
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(event) =>
+              void onPickImage(event.target.files?.[0] ?? null)
+            }
+          />
+        </div>
 
         <label className="block sm:col-span-2">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
@@ -132,7 +206,7 @@ export function PostEditor({ post }: { post?: AdminPost }) {
         <button
           type="button"
           onClick={() => void save()}
-          disabled={saving || !title.trim() || !body.trim()}
+          disabled={saving || uploading || !title.trim() || !body.trim()}
           className="rounded-full bg-[#00ff87] px-5 py-2.5 text-sm font-bold text-[#07060f] transition hover:bg-[#7dffb8] disabled:opacity-50"
         >
           {saving ? "Saving…" : post ? "Update post" : "Publish post"}

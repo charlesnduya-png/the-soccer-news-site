@@ -89,7 +89,20 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
               className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 flex-1 gap-3">
+                  {post.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={post.image}
+                      alt=""
+                      className="h-16 w-24 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-white/5 text-[10px] text-white/30">
+                      No image
+                    </div>
+                  )}
+                  <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${
@@ -113,6 +126,7 @@ export function PostsManager({ initialPosts }: { initialPosts: AdminPost[] }) {
                   <p className="mt-1 line-clamp-2 text-sm text-white/45">
                     {post.body}
                   </p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link

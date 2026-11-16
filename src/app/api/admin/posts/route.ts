@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     status?: AdminPostStatus;
     author?: string;
     topic?: string;
+    image?: string | null;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
     status: body.status === "draft" ? "draft" : "published",
     author: body.author,
     topic,
+    image: body.image ?? null,
   });
 
   return NextResponse.json({ post }, { status: 201 });

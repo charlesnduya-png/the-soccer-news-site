@@ -17,10 +17,20 @@ export type AdminPost = {
   status: AdminPostStatus;
   /** News feed / category where this post should appear. */
   topic: NewsTopic;
+  /** Public image URL (usually /api/admin/media/...). */
+  image: string | null;
   author: string;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+};
+
+export type AdminMediaAsset = {
+  id: string;
+  mime: string;
+  /** Base64 payload without data: prefix */
+  data: string;
+  createdAt: string;
 };
 
 export type PageViewEvent = {
@@ -41,6 +51,7 @@ type AnalyticsDay = {
 
 type StoreShape = {
   posts: AdminPost[];
+  media: Record<string, AdminMediaAsset>;
   analytics: {
     days: AnalyticsDay[];
     totalViews: number;
@@ -49,8 +60,11 @@ type StoreShape = {
 
 const EMPTY_STORE: StoreShape = {
   posts: [],
+  media: {},
   analytics: { days: [], totalViews: 0 },
 };
+
+const MAX_UPLOAD_BYTES = 1_800_000;
 
 let memoryStore: StoreShape | null = null;
 
@@ -85,6 +99,8 @@ function readStore(): StoreShape {
         posts: Array.isArray(parsed.posts)
           ? parsed.posts.map(normalizeAdminPost)
           : [],
+        media:
+          parsed.media && typeof parsed.media === "object" ? parsed.media : {},
         analytics: {
           days: Array.isArray(parsed.analytics?.days) ? parsed.analytics.days : [],
           totalViews: Number(parsed.analytics?.totalViews) || 0,
@@ -122,6 +138,7 @@ function normalizeAdminPost(raw: Partial<AdminPost> & { id: string }): AdminPost
     body: raw.body ?? "",
     status: raw.status === "draft" ? "draft" : "published",
     topic,
+    image: raw.image?.trim() || null,
     author: raw.author ?? "Admin",
     createdAt: raw.createdAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? raw.createdAt ?? new Date().toISOString(),
@@ -159,7 +176,37 @@ export function adminPostToNewsArticle(post: AdminPost): NewsArticle {
     link: `/news/${adminPostNewsId(post.id)}`,
     pubDate: post.publishedAt ?? post.createdAt,
     source: "soccer.co.ke",
+    image: post.image || undefined,
   };
+}
+
+export function saveAdminMedia(input: {
+  mime: string;
+  bytes: Buffer;
+}): { id: string; url: string } {
+  if (input.bytes.length > MAX_UPLOAD_BYTES) {
+    throw new Error("Image is too large. Use a file under 1.8MB.");
+  }
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (!allowed.includes(input.mime)) {
+    throw new Error("Only JPG, PNG, WEBP, or GIF images are allowed.");
+  }
+  const store = readStore();
+  const id = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
+  store.media[id] = {
+    id,
+    mime: input.mime,
+    data: input.bytes.toString("base64"),
+    createdAt: new Date().toISOString(),
+  };
+  writeStore(store);
+  return { id, url: `/api/admin/media/${id}` };
+}
+
+export function getAdminMedia(id: string): AdminMediaAsset | null {
+  const safe = id.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!safe) return null;
+  return readStore().media[safe] ?? null;
 }
 
 export function getPublishedAdminNews(topic: NewsTopic): NewsArticle[] {
@@ -225,6 +272,7 @@ export function createAdminPost(input: {
   status: AdminPostStatus;
   topic?: NewsTopic;
   author?: string;
+  image?: string | null;
 }): AdminPost {
   const store = readStore();
   const now = new Date().toISOString();
@@ -236,6 +284,7 @@ export function createAdminPost(input: {
     body: input.body.trim(),
     status: input.status,
     topic,
+    image: input.image?.trim() || null,
     author: (input.author || "Admin").trim() || "Admin",
     createdAt: now,
     updatedAt: now,
@@ -248,7 +297,9 @@ export function createAdminPost(input: {
 
 export function updateAdminPost(
   id: string,
-  input: Partial<Pick<AdminPost, "title" | "body" | "status" | "author" | "topic">>
+  input: Partial<
+    Pick<AdminPost, "title" | "body" | "status" | "author" | "topic" | "image">
+  >
 ): AdminPost | null {
   const store = readStore();
   const index = store.posts.findIndex((post) => post.id === id);
@@ -264,6 +315,10 @@ export function updateAdminPost(
     body: input.body?.trim() ?? current.body,
     author: input.author?.trim() || current.author,
     topic,
+    image:
+      input.image === undefined
+        ? current.image
+        : input.image?.trim() || null,
     status: nextStatus,
     updatedAt: now,
     publishedAt:

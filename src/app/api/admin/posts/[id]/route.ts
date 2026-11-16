@@ -43,6 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     status?: AdminPostStatus;
     author?: string;
     topic?: string;
+    image?: string | null;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -59,6 +60,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     status: body.status,
     author: body.author,
     topic,
+    image: body.image,
   });
   if (!post) {
     return NextResponse.json({ error: "Post not found." }, { status: 404 });
