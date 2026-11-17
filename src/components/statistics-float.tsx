@@ -21,7 +21,6 @@ export function StatisticsFloat() {
         unoptimized
         aria-hidden
       />
-      <span className="statistics-float__label">Stats</span>
     </Link>
   );
 }
