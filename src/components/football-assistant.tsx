@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   COACH_BOLT_SUGGESTIONS,
-  coachBoltGreeting,
   type CoachBoltMessage,
   type CoachBoltProvider,
   type LiveFixtureCard,
@@ -13,8 +12,6 @@ import {
 } from "@/lib/coach-bolt-shared";
 
 const API_BASE = "/api/coach-bolt";
-const TYPE_MS = 45;
-const PAUSE_MS = 2800;
 
 const ANALYSIS_STEPS = [
   "Querying FotMob for predicted lineups…",
@@ -144,8 +141,6 @@ export function FootballAssistant() {
   const [open, setOpen] = useState(false);
   const [docked, setDocked] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [text, setText] = useState("");
-  const [typing, setTyping] = useState(true);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<CoachBoltMessage[]>([]);
@@ -161,7 +156,6 @@ export function FootballAssistant() {
   const analysisTimerRef = useRef<number | undefined>(undefined);
   const mobileIntroDoneRef = useRef(false);
 
-  const greeting = coachBoltGreeting();
   const activeProvider = providers.find((p) => p.name === provider);
   const showLauncher = !open && (!isMobile || !docked);
   const showPeek = !open && isMobile && docked;
@@ -203,49 +197,6 @@ export function FootballAssistant() {
 
     return () => window.clearTimeout(timer);
   }, [isMobile, visible, open]);
-
-  useEffect(() => {
-    if (!visible || open || docked) return;
-
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    if (prefersReducedMotion) {
-      setText(greeting);
-      setTyping(false);
-      return;
-    }
-
-    let index = 0;
-    let pauseTimer: number | undefined;
-    let typeTimer: number | undefined;
-
-    const typeNext = () => {
-      index += 1;
-      setText(greeting.slice(0, index));
-      setTyping(index < greeting.length);
-
-      if (index < greeting.length) {
-        typeTimer = window.setTimeout(typeNext, TYPE_MS);
-      } else if (!isMobile) {
-        pauseTimer = window.setTimeout(() => {
-          index = 0;
-          setText("");
-          setTyping(true);
-          typeTimer = window.setTimeout(typeNext, TYPE_MS);
-        }, PAUSE_MS);
-      } else {
-        setTyping(false);
-      }
-    };
-
-    typeTimer = window.setTimeout(typeNext, TYPE_MS);
-
-    return () => {
-      if (typeTimer) window.clearTimeout(typeTimer);
-      if (pauseTimer) window.clearTimeout(pauseTimer);
-    };
-  }, [visible, open, docked, greeting, isMobile]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -642,41 +593,22 @@ export function FootballAssistant() {
         )}
 
         {showLauncher ? (
-          <>
-            <button
-              type="button"
-              onClick={toggleOpen}
-              className="football-assistant__bubble pointer-events-auto relative min-h-[3.25rem] max-w-[13rem] rounded-2xl border px-4 py-3 text-left text-sm font-medium leading-snug shadow-[0_12px_40px_rgba(0,0,0,0.25)] backdrop-blur-md transition sm:max-w-[15rem] sm:text-[15px]"
-              aria-label={`Open Coach Bolt — ${greeting}`}
-            >
-              <span className="football-assistant__dot absolute -bottom-2 right-8 h-4 w-4 rotate-45 border-b border-r" />
-              <span aria-hidden="true">
-                {text}
-                <span
-                  className={`football-assistant__cursor ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] ${
-                    typing ? "opacity-100" : "opacity-70"
-                  }`}
-                />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleOpen}
-              className="football-assistant__robot pointer-events-auto relative h-24 w-24 cursor-pointer sm:h-28 sm:w-28"
-              aria-label="Open Coach Bolt"
-            >
-              <div className="football-assistant__glow absolute inset-0 rounded-full blur-2xl" />
-              <Image
-                src="/football-assistant.png"
-                alt="Coach Bolt robot assistant"
-                width={256}
-                height={256}
-                className="relative h-full w-full object-contain drop-shadow-[0_12px_28px_rgba(0,255,135,0.25)]"
-                priority={false}
-              />
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={toggleOpen}
+            className="football-assistant__robot pointer-events-auto relative h-24 w-24 cursor-pointer sm:h-28 sm:w-28"
+            aria-label="Open Coach Bolt"
+          >
+            <div className="football-assistant__glow absolute inset-0 rounded-full blur-2xl" />
+            <Image
+              src="/football-assistant.png"
+              alt="Coach Bolt robot assistant"
+              width={256}
+              height={256}
+              className="relative h-full w-full object-contain drop-shadow-[0_12px_28px_rgba(0,255,135,0.25)]"
+              priority={false}
+            />
+          </button>
         ) : null}
 
         {showPeek ? (
